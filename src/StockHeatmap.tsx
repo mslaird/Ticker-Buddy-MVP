@@ -325,23 +325,46 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
               .attr("fill", "#ffffff"); // Highlight border
 
-            // Use the body-appended tooltip selection
-            tooltip.transition().duration(100).style("opacity", 0.9); // Smooth fade-in
-            tooltip.html(`<strong>${d.data.symbol}</strong><br/>${formatPercentage(d.data.changesPercentage)}<br/>Mkt Cap: ${d3.format(".3s")(d.data.marketCap ?? 0)}`)
-                   .style("left", `${event.pageX + 15}px`) // Adjust offset slightly
-                   .style("top", `${event.pageY - 30}px`); // Adjust offset slightly
+            // Prepare tooltip content
+            const percentage = d.data.changesPercentage ?? 0;
+            const formattedPercentage = formatPercentage(percentage);
+            const marketCapFormatted = d3.format(".3s")(d.data.marketCap ?? 0);
+            // Generate HTML without the class on the span initially
+            const tooltipHtml = `<strong>${d.data.symbol}</strong><br/><span>${formattedPercentage}</span><br/>Mkt Cap: ${marketCapFormatted}`;
+
+            // Show tooltip and set basic HTML
+            tooltip.transition().duration(100).style("opacity", 0.9);
+            tooltip.html(tooltipHtml)
+                   .style("left", `${event.pageX + 15}px`)
+                   .style("top", `${event.pageY - 30}px`);
+
+            // Now select the span inside the tooltip and apply styles directly
+            const spanElement = tooltip.select('span'); // Select the percentage span
+            if (percentage > 0) {
+                spanElement
+                    .style('color', '#39FF14') // Neon Lime Green
+                    .style('font-weight', 'bold')
+                    .style('text-shadow', null); // REMOVE glow
+            } else if (percentage < 0) {
+                spanElement
+                    .style('color', '#FF0000') // Pure Bright Red
+                    .style('font-weight', 'bold')
+                    .style('text-shadow', null); // REMOVE glow
+            } else {
+                spanElement
+                    .style('color', '#cccccc') // Light grey
+                    .style('font-weight', 'bold')
+                    .style('text-shadow', 'none'); // Ensure no glow for neutral
+            }
         })
         .on("mousemove", function(event) {
-             // Use the body-appended tooltip selection
              tooltip.style("left", `${event.pageX + 15}px`)
                     .style("top", `${event.pageY - 30}px`);
         })
         .on("mouseout", function(_event, d: LeafNode) {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
-               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0)); // Revert border
-
-            // Use the body-appended tooltip selection
-            tooltip.transition().duration(200).style("opacity", 0); // Smooth fade-out
+               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0));
+            tooltip.transition().duration(200).style("opacity", 0);
         });
 
     // Text Labels (foreignObject)
@@ -388,21 +411,49 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                       .text(formatPercentage(d.data.changesPercentage));
         });
 
-    // Sector Labels (Centered)
+    // Sector Labels (Aligned Left with Truncation)
     const sectors = root.descendants().filter(d => d.depth === 1);
     svg.selectAll('.sector-label')
         .data(sectors ?? [], d => (d as d3.HierarchyRectangularNode<TreeNodeData>).data.name)
         .join( enter => enter.append('text')
                 .attr('class', 'sector-label').style('fill', '#ccc')
                 .style('font-size', '12px').style('font-weight', '500')
-                .attr('text-anchor', 'middle').attr('y', d => d.y0 + 15).attr('dx', 0),
-            update => update, exit => exit.remove()
+                .attr('text-anchor', 'start')
+                .attr('y', d => d.y0 + 15).attr('dx', 10), // Increased dx to 10
+            update => update,
+            exit => exit.remove()
         )
-        .attr('x', d => d.x0 + (d.x1 - d.x0) / 2) // Center X
+        .attr('x', d => d.x0)
         .attr('y', d => d.y0 + 15)
-        .text(d => d.data.name + ' >');
+        .attr('dx', 10) // Ensure dx is applied on update too
+        .text(d => d.data.name + ' >') // Set initial full text
+        // Explicitly type 'this' as SVGTextElement for getComputedTextLength
+        .each(function(d: d3.HierarchyRectangularNode<TreeNodeData>) { 
+            const textElement = d3.select(this as SVGTextElement);
+            const availableWidth = (d.x1 - d.x0) - 15;
+            let textLength = (this as SVGTextElement).getComputedTextLength();
+            let text = d.data.name + ' >';
 
-  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor]); // Keep dimensions in dependency array to trigger re-render on resize
+            if (textLength > availableWidth && availableWidth > 0) {
+                let truncatedName = d.data.name;
+                const suffix = '... >';
+                while (textLength > availableWidth && truncatedName.length > 0) {
+                    truncatedName = truncatedName.slice(0, -1);
+                    text = truncatedName + suffix;
+                    textElement.text(text);
+                    textLength = (this as SVGTextElement).getComputedTextLength();
+                }
+                if (truncatedName.length === 0 && textLength > availableWidth) {
+                    textElement.text('');
+                } else {
+                     textElement.text(text);
+                }
+            } else if (availableWidth <= 0) {
+                 textElement.text('');
+            }
+        });
+
+  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor]);
 
   // --- Render Logic ---
   return (
