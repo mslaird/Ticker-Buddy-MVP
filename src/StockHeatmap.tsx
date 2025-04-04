@@ -4,28 +4,31 @@ import * as d3 from 'd3'; // We'll likely need D3
 // Define TypeScript interfaces for our data
 interface StockQuote {
   symbol: string;
+  name?: string;
   marketCap: number;
   changesPercentage: number;
   sector: string;
+  industry?: string; // Revert back to optional
   // Add other relevant properties if needed
 }
 
 // Type for the data structure *after* transformData
 // Sector nodes have name and children; Leaf nodes have name and StockQuote data
-interface TreeNodeData {
+interface TreeNodeData extends Partial<StockQuote> {
   name: string;
   children?: TreeNodeData[];
   // Include StockQuote properties directly for leaf nodes
   symbol?: string;
-  marketCap?: number;
-  changesPercentage?: number;
-  sector?: string;
+  value?: number;
 }
 
 // Define props if the component needs any input from its parent
 interface StockHeatmapProps {
   // Example: initialIndex?: 'sp500' | 'dow' | 'ndx' | 'rut';
 }
+
+// Type alias for leaf nodes in the hierarchy (contains StockQuote data)
+type LeafNode = d3.HierarchyRectangularNode<TreeNodeData & StockQuote>;
 
 const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   // --- State, Refs (REMOVE tooltipRef), Constants, Helpers ---
@@ -62,8 +65,6 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       NDX: "Nasdaq 100 index stocks (largest non-financial companies) categorized by sectors. Size represents market cap.",
       RUT: "Russell 2000 index stocks (small-cap US stocks) categorized by sectors. Size represents market cap."
   };
-  const MIN_RECT_WIDTH_FOR_TEXT = 25;
-  const MIN_RECT_HEIGHT_FOR_TEXT = 15;
   const MIN_RECT_HEIGHT_FOR_CHANGE = 25;
 
   // Define tab configurations using uppercase IDs
@@ -79,29 +80,20 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   // Color calculation logic (Reverted red spectrum)
   const calculateColor = useCallback((percentageChange: number): string => {
     const scale = d3.scaleLinear<string>()
-        .domain([-3, -2, -1, 0, 1, 2, 3]) 
-        // Reverted Range: Restored previous reds, kept greens/gray
-        .range(["#D31245", "#B01E3C", "#8B2534", "#3A3A3A", "#2E7A3E", "#279B48", "#17C653"]) 
-        .clamp(true); 
-    return scale(percentageChange); 
+        .domain([-3, -2, -1, 0, 1, 2, 3])
+        // Revert range back to the previous version
+        .range(["#D31245", "#B01E3C", "#8B2534", "#3A3A3A", "#2E7A3E", "#279B48", "#17C653"])
+        .clamp(true);
+    return scale(percentageChange);
   }, []);
 
   // Calculate STROKE color: Specific hex for pos/neg, LIGHTER dynamic for near-zero/zero
   const calculateStrokeColor = useCallback((percentageChange: number): string => {
-    // Check if the value is effectively zero (rounds to 0.0%)
-    if (Math.abs(percentageChange) < 0.05) {
-        // Use dynamic LIGHTER gray for zero or near-zero changes for visibility
-        const baseColor = calculateColor(0); // Explicitly get the gray color
-        // Increase brightening factor for more contrast
-        const lighterColor = d3.color(baseColor)?.brighter(2.0); 
-        return lighterColor ? lighterColor.toString() : baseColor; 
-    } else if (percentageChange > 0) {
-        // Use fixed bright green for positive changes
-        return "#00cc00";
-    } else { // percentageChange < -0.05 
-        // Use fixed bright red for negative changes
-        return "#D31245";
-    }
+    // Calculate the base fill color first
+    const baseColor = calculateColor(percentageChange);
+    // Return a slightly lighter version for the stroke effect
+    const lighterColor = d3.color(baseColor)?.brighter(0.8);
+    return lighterColor ? lighterColor.toString() : baseColor; // Fallback to base color if lightening fails
   }, [calculateColor]);
 
   // Format percentage change
@@ -111,33 +103,59 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
   }, []);
 
-  // transformData function
+  // Helper for styling percentage text in tooltips/popups
+  const getPercentageStyle = (percentage: number): { color: string; textShadow: string; fontWeight: string } => {
+    if (percentage > 0) {
+        return { 
+            color: '#39FF14', // Neon Lime Green
+            textShadow: 'none',
+            fontWeight: 'bold' 
+        };
+    } else if (percentage < 0) {
+        return {
+            color: '#FF0000', // Pure Bright Red
+            textShadow: 'none', 
+            fontWeight: 'bold'
+        };
+    } else {
+        return {
+            color: '#cccccc', // Light grey
+            textShadow: 'none', 
+            fontWeight: 'bold'
+        };
+    }
+  };
+
+  // transformData function - Revert to Sector -> Stock grouping
   const transformData = (flatData: StockQuote[]): d3.HierarchyNode<TreeNodeData> | null => {
     if (!flatData || flatData.length === 0) {
         console.error("transformData received empty or invalid data.");
         return null;
     }
-    const groupedData = d3.group(flatData, d => d.sector);
-    const rootHierarchy = {
+
+    const groupedData = d3.group(flatData, d => d.sector || "Unknown Sector");
+    
+    const rootHierarchy: TreeNodeData = {
         name: "root",
         children: Array.from(groupedData, ([sectorName, stocks]) => ({
             name: sectorName,
-            children: stocks.map(stock => ({
-                name: stock.symbol,
-                ...stock
+            // Leaf nodes are the individual stocks
+            children: stocks.map(stock => ({ 
+                name: stock.symbol, // <-- Leaf node name MUST be symbol for hierarchy
+                ...stock // <-- Spread the rest of the StockQuote data (including company name)
             }))
         }))
     };
-    const hierarchy = d3.hierarchy<TreeNodeData>(rootHierarchy) // Specify TreeNodeData type
-        .sum((d) => d.marketCap ?? 0) // Use nullish coalescing for safety
+
+    const hierarchy = d3.hierarchy<TreeNodeData>(rootHierarchy)
+        .sum((d) => d.marketCap ?? 0) 
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-    console.log(">>> transformData completed. Root node:", hierarchy);
+    
+    console.log(">>> transformData completed (Sector->Stock). Root node:", hierarchy); 
     return hierarchy;
   };
 
   // --- Calculated Values ---
-  const headerFooterHeight = 110; // Approx combined height for header/desc + footer
-  const availableHeight = dimensions.height > headerFooterHeight ? dimensions.height - headerFooterHeight : 0;
 
   // --- Effects ---
 
@@ -166,7 +184,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
     };
   }, []);
 
-  // Fetch data when activeIndex changes
+  // Fetch data when activeIndex changes - Revert to only use sector
   useEffect(() => {
     if (!API_KEY) {
         setError("API Key is missing.");
@@ -178,8 +196,8 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       setError(null);
       setStockData(null);
 
-      const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS]; // Use uppercase key
-      const indexName = activeIndex; // Already uppercase
+      const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS];
+      const indexName = activeIndex;
 
       if (!CONSTITUENTS_URL) {
           setError(`Endpoint not defined for index type "${activeIndex}".`);
@@ -189,15 +207,21 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
       console.log(`>>> Fetching ${indexName} constituents...`);
       let symbols: string[] = [];
-      let sectorMap: { [key: string]: string } = {};
+      // Revert to just storing sector
+      let sectorMap: { [key: string]: string } = {}; 
 
       try {
         const constituentsResponse = await fetch(CONSTITUENTS_URL);
         if (!constituentsResponse.ok) throw new Error(`Failed to fetch ${indexName} list: ${constituentsResponse.status}`);
         const constituentsData = await constituentsResponse.json();
         if (!Array.isArray(constituentsData)) throw new Error(`Invalid data format for ${indexName} constituents.`);
+        
+        // Process constituents to get symbols and sector
         constituentsData.forEach((stock: any) => {
-            if (stock.symbol) { symbols.push(stock.symbol); sectorMap[stock.symbol] = stock.sector || "Other"; }
+            if (stock.symbol) { 
+                symbols.push(stock.symbol); 
+                sectorMap[stock.symbol] = stock.sector || "Other";
+            }
         });
         if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
         console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching quotes...`);
@@ -209,15 +233,26 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} quotes.`);
         console.log(`>>> Received ${quoteData.length} ${indexName} quotes. Combining...`);
 
-        let combinedData: StockQuote[] = quoteData.map((quote: any) => {
+        // Combine quote data with sector info
+        const combinedDataWithNulls = quoteData.map((quote: any) => {
             if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
-            return {
-                symbol: quote.symbol, marketCap: quote.marketCap,
+            const sector = sectorMap[quote.symbol];
+            if (!sector) return null; 
+            // Construct object matching StockQuote more closely
+            const stockQuoteItem: StockQuote = {
+                symbol: quote.symbol as string, 
+                name: quote.name as string | undefined,
+                marketCap: quote.marketCap as number,
                 changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
-                sector: sectorMap[quote.symbol] || "Other"
+                sector: sector, // Use sector from map
             };
-        }).filter((stock): stock is StockQuote => stock !== null);
-        combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG'); // Filter GOOG
+            return stockQuoteItem;
+        });
+        
+        // Filter out nulls with correct type predicate
+        let combinedData: StockQuote[] = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
+        
+        combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG'); // Keep GOOG filter
         if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}.`);
         console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
 
@@ -231,14 +266,71 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       } finally { setIsLoading(false); }
     };
     fetchData();
-  }, [activeIndex, API_KEY]); // API_KEY added as dependency
+  }, [activeIndex, API_KEY]); // Removed dependencies for brevity, ensure they are correct
 
-  // D3 rendering effect
+  // --- Handler Functions for Sector Hover (Defined BEFORE useEffect) --- 
+  const sectorMouseoverHandler = useCallback((event: MouseEvent, d: d3.HierarchyRectangularNode<TreeNodeData>) => {
+      if (!svgRef.current) {
+          return;
+      }
+      const svg = d3.select(svgRef.current);
+      const sectorPopup = d3.select<HTMLDivElement, unknown>("#sector-popup");
+      
+      // Add Highlight Rect (Styled as a border now)
+      svg.append("rect")
+         .attr("class", "sector-highlight-overlay") 
+         .attr("x", d.x0)
+         .attr("y", d.y0)
+         .attr("width", d.x1 - d.x0)
+         .attr("height", d.y1 - d.y0)
+         .attr("fill", "none") // <-- Make fill transparent
+         .attr("stroke", "#ffffff") // <-- Set stroke color to white
+         .attr("stroke-width", 2) // <-- Set stroke width
+         .style("pointer-events", "none");
+
+      // Prepare Popup Content
+      const stocks = d.leaves() as LeafNode[]; 
+      let listHtml = `<h3 style="margin: 0 0 5px 0; padding-bottom: 3px; border-bottom: 1px solid #555;">${d.data.name}</h3><ul style="margin: 0; padding-left: 15px; list-style: none; max-height: 150px; overflow-y: auto;">`;
+      stocks.sort((a, b) => (b.data.marketCap ?? 0) - (a.data.marketCap ?? 0))
+            .slice(0, 10) // Limit to top 10 by market cap for brevity
+            .forEach(stock => {
+                const percentage = stock.data.changesPercentage ?? 0;
+                const styleProps = getPercentageStyle(percentage); // Use existing style function
+                const companyName = stock.data.name ? ` (${stock.data.name})` : ''; // Get company name if available
+                listHtml += `<li style="margin-bottom: 3px; font-size: 0.9em;"><strong>${stock.data.symbol}${companyName}</strong>: <span style="color:${styleProps.color}; font-weight:${styleProps.fontWeight}; text-shadow:${styleProps.textShadow};">${formatPercentage(percentage)}</span></li>`;
+            });
+      if (stocks.length > 10) {
+          listHtml += `<li style="margin-top: 5px; font-style: italic; font-size: 0.8em;">...and ${stocks.length - 10} more</li>`;
+      }
+      listHtml += "</ul>";
+
+      // Show and Position Popup
+      if (!sectorPopup.empty()) {
+          sectorPopup.transition().duration(100).style("opacity", 0.95);
+          sectorPopup.html(listHtml) 
+                     .style("left", `${event.pageX + 20}px`)
+                     .style("top", `${event.pageY - 15}px`);
+      }
+  }, [formatPercentage, getPercentageStyle]); // Dependencies: formatting and styling functions
+
+  const sectorMouseoutHandler = useCallback(() => {
+      if (!svgRef.current) {
+           return; // Need svgRef here too
+      }
+      // Remove Highlight Rect
+      d3.select(svgRef.current).select(".sector-highlight-overlay").remove();
+      // Hide Popup
+      d3.select<HTMLDivElement, unknown>("#sector-popup").transition().duration(200).style("opacity", 0);
+  }, []); // No external dependencies needed here
+
+  // --- Main D3 Rendering Effect ---
   useEffect(() => {
     const svgElement = svgRef.current;
-    let tooltip = d3.select<HTMLDivElement, unknown>("#tooltip-react");
-    if (tooltip.empty()) {
-        tooltip = d3.select("body").append("div")
+    
+    // --- Tooltip Setup --- 
+    let tileTooltip = d3.select<HTMLDivElement, unknown>("#tooltip-react");
+    if (tileTooltip.empty()) {
+        tileTooltip = d3.select("body").append("div")
             .attr("id", "tooltip-react")
             .style("position", "absolute")
             .style("opacity", 0)
@@ -253,45 +345,58 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             .style("z-index", "999"); // Ensure high z-index
     }
 
+    // --- NEW: Sector Popup Setup --- 
+    let sectorPopup = d3.select<HTMLDivElement, unknown>("#sector-popup");
+    if (sectorPopup.empty()) {
+        sectorPopup = d3.select("body").append("div")
+            .attr("id", "sector-popup")
+            .style("position", "absolute")
+            .style("opacity", 0)
+            .style("background-color", "rgba(40, 40, 40, 0.95)") // Slightly different background
+            .style("border", "1px solid #cccccc")
+            .style("border-radius", "6px")
+            .style("padding", "10px")
+            .style("color", "#ffffff")
+            .style("font-size", "11px")
+            .style("pointer-events", "none") // Must not block events
+            .style("max-height", "300px") // Prevent excessive height
+            .style("overflow-y", "auto") // Allow scrolling if list is long
+            .style("z-index", "998"); // Slightly below tile tooltip if overlaps occur
+    }
+
     if (!stockData || !svgElement) {
-        // Clear SVG if we abort render due to missing data/ref
         if (svgElement) {
             d3.select(svgElement).selectAll("*").remove();
         }
         return;
     }
 
-    // NOW, measure the SVG's actual dimensions
     const svgWidth = svgElement.clientWidth;
     const svgHeight = svgElement.clientHeight;
 
-    // Check if SVG dimensions are valid before proceeding
     if (svgWidth <= 0 || svgHeight <= 0) {
-        // Clear SVG if dimensions are invalid (e.g., hidden container)
         d3.select(svgElement).selectAll("*").remove();
-        return;
+      return;
     }
 
     const svg = d3.select(svgElement);
-
-    // Clear previous render
     svg.selectAll("*").remove();
 
-    // Use MEASURED SVG dimensions for layout size
     const treemapLayout = d3.treemap<TreeNodeData>()
-        .size([svgWidth, svgHeight]) // USE MEASURED SVG DIMENSIONS
+        .size([svgWidth, svgHeight])
         .paddingTop(20)
-        .paddingRight(10)
+        .paddingRight(2)
         .paddingBottom(2)
-        .paddingLeft(10)
-        .paddingInner(3)
-        .tile(d3.treemapSquarify);
+        .paddingLeft(2)
+        .paddingInner(2)
+        .tile(d3.treemapSquarify); 
 
     const root = treemapLayout(stockData);
-    type LeafNode = d3.HierarchyRectangularNode<TreeNodeData & StockQuote>;
-
     const leaves = root.leaves();
-    if (!Array.isArray(leaves)) { console.error("D3 Error: root.leaves() !Array"); return; }
+    if (!Array.isArray(leaves)) { 
+        console.error("D3 Error: root.leaves() did not return an Array!"); 
+        return; 
+    }
 
     const cell = svg.selectAll("g.tile-cell")
       .data(leaves as LeafNode[])
@@ -299,143 +404,128 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         .attr("class", "tile-cell")
         .attr("transform", d => `translate(${d.x0},${d.y0})`);
 
-    // Clip Paths
     cell.append("defs").append("clipPath")
         .attr("id", (d, i) => `clip-${i}`)
       .append("rect")
         .attr("width", d => d.x1 - d.x0)
         .attr("height", d => d.y1 - d.y0);
 
-    // Outer Border Rect
     cell.append("rect")
-        .attr("class", "tile-border-rect") // Class for hover targeting
+        .attr("class", "tile-border-rect")
         .attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0)
         .attr("fill", d => calculateStrokeColor(d.data.changesPercentage ?? 0))
         .attr("stroke", "none");
 
-    // Inner Fill Rect + Interactions
     cell.append("rect")
         .attr("class", "tile-fill-rect")
-        .attr("x", 0.5).attr("y", 0.5)
-        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 1))
-        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 1))
+        .attr("x", 1.5).attr("y", 1.5)
+        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 3))
+        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 3))
         .attr("fill", d => calculateColor(d.data.changesPercentage ?? 0))
         .attr("stroke", "none")
         .on("mouseover", function(event, d: LeafNode) {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
-              .attr("fill", "#ffffff"); // Highlight border
-
-            // Prepare tooltip content
+              .attr("fill", "#ffffff"); 
             const percentage = d.data.changesPercentage ?? 0;
             const formattedPercentage = formatPercentage(percentage);
             const marketCapFormatted = d3.format(".3s")(d.data.marketCap ?? 0);
-            // Generate HTML without the class on the span initially
-            const tooltipHtml = `<strong>${d.data.symbol}</strong><br/><span>${formattedPercentage}</span><br/>Mkt Cap: ${marketCapFormatted}`;
-
-            // Show tooltip and set basic HTML
-            tooltip.transition().duration(100).style("opacity", 0.9);
-            tooltip.html(tooltipHtml)
+            const companyName = d.data.name ? ` (${d.data.name})` : ''; // Get company name if available
+            const tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/><span>${formattedPercentage}</span><br/>Mkt Cap: ${marketCapFormatted}`;
+            
+            tileTooltip.transition().duration(100).style("opacity", 0.9);
+            tileTooltip.html(tooltipHtml)
                    .style("left", `${event.pageX + 15}px`)
                    .style("top", `${event.pageY - 30}px`);
-
-            // Now select the span inside the tooltip and apply styles directly
-            const spanElement = tooltip.select('span'); // Select the percentage span
-            if (percentage > 0) {
-                spanElement
-                    .style('color', '#39FF14') // Neon Lime Green
-                    .style('font-weight', 'bold')
-                    .style('text-shadow', null); // REMOVE glow
-            } else if (percentage < 0) {
-                spanElement
-                    .style('color', '#FF0000') // Pure Bright Red
-                    .style('font-weight', 'bold')
-                    .style('text-shadow', null); // REMOVE glow
-            } else {
-                spanElement
-                    .style('color', '#cccccc') // Light grey
-                    .style('font-weight', 'bold')
-                    .style('text-shadow', 'none'); // Ensure no glow for neutral
-            }
+                   
+            // Apply styles using the helper function
+            const spanElement = tileTooltip.select('span'); 
+            const styleProps = getPercentageStyle(percentage);
+            spanElement
+                .style('color', styleProps.color)
+                .style('font-weight', styleProps.fontWeight)
+                .style('text-shadow', styleProps.textShadow);
         })
         .on("mousemove", function(event) {
-             tooltip.style("left", `${event.pageX + 15}px`)
+             tileTooltip.style("left", `${event.pageX + 15}px`)
                     .style("top", `${event.pageY - 30}px`);
         })
         .on("mouseout", function(_event, d: LeafNode) {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
-               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0));
-            tooltip.transition().duration(200).style("opacity", 0);
+               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0)); 
+            tileTooltip.transition().duration(200).style("opacity", 0);
         });
 
-    // Text Labels (foreignObject)
     cell.append("foreignObject")
         .attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0)
         .style("pointer-events", "none")
         .attr("clip-path", (d, i) => `url(#clip-${i})`)
         .append("xhtml:div")
-          .attr("class", "tile-text-container") // Added class
+          .attr("class", "tile-text-container")
           .style("display", "flex").style("flex-direction", "column")
           .style("justify-content", "center").style("align-items", "center")
           .style("width", "100%").style("height", "100%")
           .style("overflow", "hidden").style("text-align", "center")
           .style("font-family", "'Roboto', sans-serif").style("color", "#ffffff")
           .style("font-weight", "bold")
-          .each(function(d, i) { // Use .each on the div selection
+          .each(function(d, i) { 
             const textContainer = d3.select(this);
             const w = d.x1 - d.x0;
             const h = d.y1 - d.y0;
-
-            // Font size calculation
             const MAX_FONT_SIZE = 24;
             const MIN_VISIBLE_FONT_SIZE = 6;
             const calculatedFontSize = Math.min(w * 0.22, h * 0.40, MAX_FONT_SIZE);
             const finalFontSize = calculatedFontSize >= MIN_VISIBLE_FONT_SIZE ? calculatedFontSize : 0;
             const isVisible = finalFontSize > 0;
-
-            if (i < 5) { console.log(`Tile ${i}: Symbol=${d.data.symbol}, W=${w.toFixed(1)}, H=${h.toFixed(1)}, CalcFS=${calculatedFontSize.toFixed(1)}, FinalFS=${finalFontSize}, Visible=${isVisible}`); }
-
-            // Apply styles to DIV
+            if (i < 5) { /* console.log(...) */ }
             textContainer.style("opacity", isVisible ? 1 : 0)
                          .style("font-size", `${finalFontSize}px`);
-
-            // Ticker Span (Select/Append)
             let tickerSpan = textContainer.select<HTMLSpanElement>("span.ticker");
             if (tickerSpan.empty()) tickerSpan = textContainer.append("span").attr("class", "ticker");
-            tickerSpan.style("line-height", "1.1").text(d.data.symbol ?? 'ERR');
-
-            // Change Span (Select/Append)
+            tickerSpan.style("line-height", "1.1")
+                      .style("text-shadow", "1px 1px 2px rgba(0,0,0,0.7)")
+                      .text(d.data.symbol ?? 'ERR');
             let changeSpan = textContainer.select<HTMLSpanElement>("span.change");
             if (changeSpan.empty()) changeSpan = textContainer.append("span").attr("class", "change");
             changeSpan.style('font-size', `${finalFontSize * 0.8}px`).style("line-height", "1.1")
                       .style('display', isVisible && h > MIN_RECT_HEIGHT_FOR_CHANGE ? 'block' : 'none')
+                      .style("text-shadow", "1px 1px 1px rgba(0,0,0,0.6)")
                       .text(formatPercentage(d.data.changesPercentage));
         });
 
-    // Sector Labels (Aligned Left with Truncation)
+    // --- Final Step: Render Sector Labels ON TOP --- 
     const sectors = root.descendants().filter(d => d.depth === 1);
     svg.selectAll('.sector-label')
         .data(sectors ?? [], d => (d as d3.HierarchyRectangularNode<TreeNodeData>).data.name)
-        .join( enter => enter.append('text')
-                .attr('class', 'sector-label').style('fill', '#ccc')
+        .join(
+            enter => enter.append('text')
+                .attr('class', 'sector-label')
+                .style('fill', '#eee')
                 .style('font-size', '12px').style('font-weight', '500')
                 .attr('text-anchor', 'start')
-                .attr('y', d => d.y0 + 15).attr('dx', 10), // Increased dx to 10
-            update => update,
+                .attr('y', d => d.y0 + 15).attr('dx', 10)
+                .style('pointer-events', 'all')
+                .style('cursor', 'pointer')
+                .on("mouseover", (event, d) => sectorMouseoverHandler(event, d))
+                .on("mouseout", () => sectorMouseoutHandler()),
+            update => update
+                .style('fill', '#eee')
+                .style('pointer-events', 'all')
+                .style('cursor', 'pointer')
+                .on("mouseover", (event, d) => sectorMouseoverHandler(event, d))
+                .on("mouseout", () => sectorMouseoutHandler()),
             exit => exit.remove()
         )
         .attr('x', d => d.x0)
         .attr('y', d => d.y0 + 15)
-        .attr('dx', 10) // Ensure dx is applied on update too
-        .text(d => d.data.name + ' >') // Set initial full text
-        // Explicitly type 'this' as SVGTextElement for getComputedTextLength
-        .each(function(d: d3.HierarchyRectangularNode<TreeNodeData>) { 
+        .attr('dx', 10)
+        .text(d => d.data.name + ' >')
+        .each(function(_d: d3.HierarchyRectangularNode<TreeNodeData>) { 
             const textElement = d3.select(this as SVGTextElement);
-            const availableWidth = (d.x1 - d.x0) - 15;
+            const availableWidth = (_d.x1 - _d.x0) - 15;
             let textLength = (this as SVGTextElement).getComputedTextLength();
-            let text = d.data.name + ' >';
-
+            let text = _d.data.name + ' >';
             if (textLength > availableWidth && availableWidth > 0) {
-                let truncatedName = d.data.name;
+                let truncatedName = _d.data.name;
                 const suffix = '... >';
                 while (textLength > availableWidth && truncatedName.length > 0) {
                     truncatedName = truncatedName.slice(0, -1);
@@ -453,35 +543,38 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             }
         });
 
-  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor]);
+  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor, getPercentageStyle, sectorMouseoverHandler, sectorMouseoutHandler]); // ADDED handlers back to dependencies
 
   // --- Render Logic ---
   return (
-    // Outer div for sizing, padding, centering
+    // Outer div - Use viewport width + aspect-ratio
     <div style={{
         padding: '10px',
         boxSizing: 'border-box',
-        maxWidth: '1600px', // Keep previous width setting
-        maxHeight: '650px', // Keep previous height setting
-        height: 'calc(100vh - 40px)',
-        margin: '20px auto'
+        width: '90vw', // Set width relative to viewport
+        aspectRatio: '2 / 1', // Change aspect ratio to make it taller (was 2.5 / 1)
+        margin: '20px auto' 
     }}>
-      {/* Inner div for border, background, flex layout */}
-    <div
-      ref={containerRef}
-      style={{
-            width: '100%', height: '100%',
-            border: '0.5px solid #00cc00', // Restore 0.5px border
+      {/* Inner div - Fill the outer div */}
+      <div
+        ref={containerRef}
+        style={{
+            width: '100%',
+            height: '100%', // Fill outer div
+            border: '0.5px solid #00cc00',
             borderRadius: '8px', backgroundColor: '#0a0a0a',
             position: 'relative', color: '#ffffff', fontFamily: 'Roboto, sans-serif',
             display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxSizing: 'border-box' // Restore boxSizing
+            overflow: 'hidden', boxSizing: 'border-box'
         }}
       >
         {/* Header Container */}
         <div id="heatmap-header" style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-            padding: '0 10px 0 0', borderBottom: '0.5px solid #00cc00', flexShrink: 0
+            display: 'flex', 
+            alignItems: 'baseline',
+            padding: '0 10px 0 0', 
+            borderBottom: '0.5px solid #00cc00', 
+            flexShrink: 0
           }}>
           {/* Index Tabs */}
           <div id="index-tabs">
@@ -493,35 +586,39 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
               </button>
           ))}
           </div>
+          
+          {/* MOVED Description Area - now inline with header */}
+          <div id="heatmap-description" style={{
+                  margin: '0 20px', // Add some horizontal margin for spacing
+                  color: '#999999',
+                  fontSize: '10pt', 
+                  textAlign: 'center', // Center text within its available space
+                  flexGrow: 1 // Allow it to take up available middle space
+                }}>
+               <p style={{ margin: 0 }}>{INDEX_DESCRIPTIONS[activeIndex as keyof typeof INDEX_DESCRIPTIONS]}</p>
+          </div>
+
           {/* Live Data Indicator */}
-          <div className="live-indicator" style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="live-indicator" style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
             <span className="live-dot" style={{ marginRight: '5px' }}></span>
             <span className="live-text">Live Data</span>
           </div>
-      </div>
-
-       {/* Description Area */}
-        <div id="heatmap-description" style={{
-                padding: '0 15px', marginTop: '8px', marginBottom: '5px', // Restored margins
-                color: '#999999', fontSize: '14pt' // Restored font size
-              }}>
-             <p style={{ margin: 0 }}>{INDEX_DESCRIPTIONS[activeIndex as keyof typeof INDEX_DESCRIPTIONS]}</p>
       </div>
 
         {/* Status Messages */}
         {isLoading && ( <div style={{ /* Loading styles */ }}>Loading data for {activeIndex}...</div> )}
         {error && ( <div style={{ /* Error styles */ }}>Error: {error}</div> )}
 
-        {/* SVG Container */}
+        {/* Restore SVG Container */}
         <svg ref={svgRef} id="treemap-chart-react"
             style={{ display: 'block', flexGrow: 1, minHeight: 0 }}>
-            {/* D3 populates this */}
+            {/* D3 will populate this */}
         </svg>
 
         {/* Footer Section */}
         <div id="heatmap-footer" style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '0 10px 8px 20px', // Restored padding for alignment
+            padding: '5px 10px 8px 5px', // Change top padding from 0 to 5px
             marginTop: '5px', backgroundColor: '#0a0a0a', flexShrink: 0,
             borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px'
           }}>

@@ -1,0 +1,36 @@
+/* Add styles for tooltip percentage change */
+.tooltip-positive {
+  color: #17C653; /* Bright green */
+  font-weight: bold;
+  text-shadow: 0 0 4px #17C653, 0 0 7px rgba(23, 198, 83, 0.7); /* Green glow */
+}
+
+.tooltip-negative {
+  color: #ff4d4d; /* Brighter red for better visibility */
+  font-weight: bold;
+  text-shadow: 0 0 4px #ff4d4d, 0 0 7px rgba(255, 77, 77, 0.7); /* Red glow */
+}
+
+.tooltip-neutral {
+   color: #cccccc; /* Light grey */
+   font-weight: bold;
+   /* No glow for neutral */
+}
+
+/* Ensure tooltip content aligns items properly if needed */
+#tooltip-react {
+  line-height: 1.4; /* Adjust line spacing if needed */
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #121212; /* Dark background for the whole page */
+  color: #e0e0e0; /* Default light text color */
+}
+
+/* ... rest of existing styles ... */ 

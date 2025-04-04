@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",           // Compile to modern JavaScript
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"], // Include standard browser and modern JS libraries
+    "allowJs": false,              // Don't allow JavaScript files (enforce TS)
+    "skipLibCheck": true,          // Skip type checking of declaration files (faster builds)
+    "esModuleInterop": true,       // Enables interoperability between CommonJS and ES Modules
+    "allowSyntheticDefaultImports": true, // Allow default imports from modules with no default export
+    "strict": true,                // Enable all strict type-checking options
+    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references to the same file
+    "module": "ESNext",            // Use modern module system
+    "moduleResolution": "bundler",    // How modules get resolved (standard for Node/NPM)
+    "resolveJsonModule": true,     // Allows importing JSON files
+    "isolatedModules": true,       // Ensure files can be safely transpiled without relying on other imports
+    "noEmit": true,                // Do not emit output files (Vite handles this)
+    "jsx": "react-jsx",          // Use the new JSX transform
+    "types": ["vite/client"],      // Add Vite client types here
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"], // Explicitly exclude node_modules and build output
+  "references": [{ "path": "./tsconfig.node.json" }] // Separate config for Node-specific things like vite.config.ts processing
+} 

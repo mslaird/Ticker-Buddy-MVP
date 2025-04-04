@@ -1,0 +1,343 @@
+/* Use the SAME style.css content from the previous D3 Treemap example */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #131722; /* Dark background */
+    margin: 0;
+    padding: 0; /* REMOVED body padding to make heatmap nearly flush */
+    color: #d1d4dc;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    align-items: center; /* Center content horizontally */
+}
+
+.live-indicator {
+    color: #ff0000; /* Bright Red */
+    font-weight: bold; /* Make it bolder like an indicator */
+    /* Optional: Add a subtle glow or animation later if desired */
+  }
+
+h1, p {
+    text-align: center;
+    color: #efefef;
+    flex-shrink: 0;
+}
+p {
+    font-size: 0.9em;
+    color: #8a8a8a;
+    margin-bottom: 15px;
+}
+
+/* Container for the SVG */
+#treemap-container {
+    max-width: 1200px;     /* Max width */
+    height: 100%;          /* CHANGED height to 100% */
+    margin: 0 auto;        /* Keep horizontal centering */
+    background-color: #0A0A0A;
+    border-radius: 8px;
+    overflow: hidden;        /* CRITICAL: Clips the SVG corners */
+    border: 0.5px solid #00cc00; /* Optional: Subtle border to define edge */
+                             /* Adjust border color as needed */
+    box-sizing: border-box;
+    position: relative; /* Needed for potential absolute elements inside if any */
+    display: flex; /* To help center loading message */
+    flex-direction: column;
+}
+
+/* The SVG element itself */
+#treemap-chart {
+    display: block; /* Remove extra space below SVG */
+    flex-grow: 1;
+    min-height: 0;
+    width: 100%;
+}
+
+/* Loading/Error Message Style */
+.status-message {
+    position: absolute; /* Position relative to container */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(30, 30, 30, 0.85); /* Dark semi-transparent */
+    color: #efefef;
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 10; /* Ensure it's above potential SVG content */
+    text-align: center;
+    pointer-events: none; /* Don't block interactions */
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+}
+
+
+/* Styling for the rectangles (tiles) created by D3 */
+/* Removed .tile-rect rules as we use .tile-border-rect / .tile-fill-rect */
+
+
+/* Styling for text elements within tiles */
+/* Removed .tile-text rules as we use foreignObject */
+
+
+/* Basic Tooltip Styling */
+/* Remove duplicate .tooltip rules */
+.tooltip {
+    position: absolute; /* Position relative to the page */
+    background-color: rgba(40, 40, 40, 0.9);
+    color: #fff;
+    padding: 8px 12px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 0.85em;
+    pointer-events: none; /* Don't let tooltip block mouse events */
+    opacity: 0; /* Hidden by default */
+    transition: opacity 0.2s ease-in-out;
+    white-space: nowrap; /* Prevent wrapping */
+    z-index: 20; /* Ensure it's on top */
+}
+
+.tooltip.visible {
+    opacity: 1;
+}
+
+/* ============================ */
+/* === Treemap Styles Start === */
+/* ============================ */
+
+/* In style.css around line 142 */
+.sector-group {
+    pointer-events: none; /* Prevent group from blocking mouse events on underlying stocks */
+  }
+
+/* In style.css */
+
+/* ... other styles ... */
+
+.sector-label {
+    font-family: 'Roboto', Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    fill: #efefef;  /* Light grey text */
+    pointer-events: none; /* Prevent label text from capturing mouse events */
+    text-anchor: start; /* Align text to the left */
+  }
+
+  .sector-label:hover {
+    fill: #ffffff; /* Brighter color on hover for feedback */
+    cursor: pointer;
+}
+
+  /* ... other styles ... */
+
+/* ... etc ... paste all the other rules I provided here ... */
+/* In style.css */
+
+.legend-item {
+    display: flex;
+    flex-direction: column; 
+    align-items: center; /* Center items within the column */
+    margin: 0 8px; /* Space between legend items */
+}
+
+.legend-color {
+    width: 35px;
+    height: 15px;
+    border-width: 0.5px; /* Set width */
+    border-style: solid; /* Set style */
+    /* Border color set inline in HTML */
+    margin-bottom: 4px;
+}
+
+.legend-label {
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    color: #ababab;
+}
+
+/* === START: Index Tab Styles === */
+#index-tabs { /* Container already has padding/bg/border-bottom */
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+.index-tab {
+  font-family: 'Roboto', sans-serif;
+  font-size: 16px; /* Increased font size */
+  font-weight: 500;
+  color: #999999; /* Inactive text color */
+  background-color: #1f1f1f; /* Matches container bg */
+  border: 0.5px solid #00cc00; /* Border on all sides */
+  border-bottom: none; /* No bottom border for inactive tabs above the line */
+  padding: 10px 25px; /* Increased padding */
+  /* marginRight: 2px; -> Kept inline */
+  /* cursor: pointer; -> Kept inline */
+  transition: color 0.2s, background-color 0.2s;
+  border-top-left-radius: 6px; /* Rounded top corners */
+  border-top-right-radius: 6px;
+}
+
+.index-tab:hover:not(.active) {
+  color: #cccccc; /* Slightly brighter on hover */
+  background-color: #2a2a2a;
+}
+
+/* Remove left border specifically from the FIRST tab */
+#index-tabs .index-tab:first-child {
+  border-left: none;
+}
+
+.index-tab.active {
+  color: #ffffff; /* Bright active text */
+  font-weight: bold;
+  background-color: #0A0A0A; /* Match the MAIN heatmap background */
+  border-bottom-color: transparent; /* Make bottom border disappear */
+  position: relative;
+  top: 0.5px; /* Move slightly down to cover container border */ 
+  cursor: default !important; /* Override inline style */
+}
+/* === END: Index Tab Styles === */
+
+/* === START: Header & Live Indicator Styles === */
+.live-indicator {
+  color: #ff4500; /* Orangered color for text */
+  font-family: 'Roboto', sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  /* display: flex; align-items: center; set inline */
+}
+
+.live-text { /* New rule for the text part only */ 
+  font-size: 16px; /* Adjusted font size */
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  70% { transform: scale(1.4); opacity: 0.4; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1); }
+  100% { transform: scale(0.9); }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  position: relative;
+  /* margin-right: 5px; -> Set inline */
+}
+
+.live-dot::before { /* Outer pulsing ring */
+  content: '';
+  position: absolute;
+  display: block;
+  width: 200%; /* Larger than the dot */
+  height: 200%;
+  box-sizing: border-box;
+  margin-left: -50%; /* Center the ring */
+  margin-top: -50%;
+  border-radius: 50%;
+  background-color: rgba(255, 69, 0, 0.5); /* Semi-transparent orangered */
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.live-dot::after { /* Inner solid dot */
+  content: '';
+  position: absolute;
+  left: 0; 
+  top: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: #ff4500; /* Solid orangered */
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 69, 0, 0.7);
+  animation: pulse-dot 1.5s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+/* === END: Header & Live Indicator Styles === */
+
+/* Optional subtle highlight for individual tile hover */
+rect.tile-rect.tile-hover {
+    stroke: #FFFFFF; /* Example: White stroke */
+    stroke-width: 1.5px; /* Example: Slightly thicker */
+    /* Add other subtle effects if desired */
+}
+
+/* Style for the sector background rectangle */
+.sector-background-rect {
+    transition: stroke 0.15s ease-in-out, opacity 0.15s ease-in-out; /* Smooth transition */
+}
+
+/* Style when the sector is highlighted */
+.sector-background-rect.highlighted {
+    stroke: #00cc00; /* Example: Bright green border */
+    stroke-width: 3px;
+    opacity: 0.8; /* Make border slightly transparent if desired */
+}
+
+/* Style for dimmed stock tiles */
+rect.tile-rect.dimmed {
+   opacity: 0.3 !important; /* Use !important to override potential conflicts */
+   transition: opacity 0.15s ease-in-out;
+}
+
+/* Keep .legend-item, .legend-color, .legend-label styles as they were */
+  /* Adjust main container padding if header feels too close/far */
+  /* #treemap-container { ... } */
+
+  /* We might need to adjust SVG positioning slightly if needed */
+  /* #treemap-chart { ... } */
+/* ============================ */
+/* === Treemap Styles End === */
+/* ============================ */
+
+/* === START: Date Button Styles === */
+
+.date-button {
+    font-family: 'Roboto', sans-serif;
+    font-weight: bold;
+    font-size: 16px; /* Increased font size */
+    color: #ffffff; /* White 'D' text */
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 36px;  /* Increased size */
+    height: 36px; /* Increased size */
+    box-sizing: border-box; /* Make width/height include border/padding */
+  
+    /* --- Define Border Space --- */
+    border: 0.5px solid transparent; /* Set width, make transparent */
+    padding: 2px; /* Keep padding INSIDE the border for the text */
+  
+    /* --- Border Radius --- */
+    border-radius: 8px; /* Increased border radius */
+  
+    /* --- Multiple Background Layers --- */
+    /* Layer 1 (Top): Button Face Gradient (clipped to padding box) */
+    /* Layer 2 (Bottom): Border Gradient (fills border box) */
+    background-image:
+    linear-gradient(to bottom, #3a3a3a 0%, #0f0f0f 100%), /* Face */
+    linear-gradient(to bottom, #ffffff 0%, #555555 100%); /* Border (Lighter bottom) */
+  
+    /* --- Clipping and Origin --- */
+    background-clip: padding-box, border-box; /* Clip face gradient to padding area */
+    background-origin: padding-box, border-box; /* Align origins */
+
+    position: relative;
+    z-index: 1;
+  }
+  
+  .date-button:hover {
+    /* Update Face Gradient on hover */
+    background-image:
+        linear-gradient(to bottom, #4a4a4a 0%, #1f1f1f 100%),
+        linear-gradient(to bottom, #ffffff 0%, #555555 100%); /* Border Gradient (Lighter bottom) */
+     /* Border remains transparent */
+  }
+
+/* === END: Date Button Styles === */
