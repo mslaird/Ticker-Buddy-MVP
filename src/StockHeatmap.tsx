@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as d3 from 'd3'; // We'll likely need D3
+// Import DatePicker and its CSS
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 // Define TypeScript interfaces for our data
 interface StockQuote {
@@ -30,13 +33,27 @@ interface StockHeatmapProps {
 // Type alias for leaf nodes in the hierarchy (contains StockQuote data)
 type LeafNode = d3.HierarchyRectangularNode<TreeNodeData & StockQuote>;
 
+// Helper function for async delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   // --- State, Refs (REMOVE tooltipRef), Constants, Helpers ---
   const [stockData, setStockData] = useState<d3.HierarchyNode<TreeNodeData> | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState<string>('SP500');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null); // <-- Add state for selected date (null = live)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  // --- ADD: Formatted Date Memo --- 
+  const formattedDate = useMemo<string | null>(() => {
+      if (!selectedDate) return null;
+      const year = selectedDate.getFullYear();
+      const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+      const day = selectedDate.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
+  }, [selectedDate]);
+  // --- END: Formatted Date Memo ---
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -68,7 +85,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   };
   const MIN_RECT_HEIGHT_FOR_CHANGE = 25;
   // Define treemap padding constants for reuse
-  const PADDING_TOP = 20;
+  const PADDING_TOP = 15;
   const PADDING_RIGHT = 2;
   const PADDING_BOTTOM = 2;
   const PADDING_LEFT = 2;
@@ -84,12 +101,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
   // --- Helper Functions (Define BEFORE useEffect that uses them) ---
 
-  // Color calculation logic (Adjusted for medium vibrance)
+  // Color calculation logic (Adjusted for very-high vibrance)
   const calculateColor = useCallback((percentageChange: number): string => {
     const scale = d3.scaleLinear<string>()
         .domain([-3, -2, -1, 0, 1, 2, 3])
-        // Intermediate range for medium vibrance
-        .range(["#C3294F", "#A72847", "#852D3B", "#3A3A3A", "#3A8049", "#38A056", "#32C767"])
+        // Very high vibrance range, almost original
+        .range(["#D01846", "#AF1F3E", "#8A2635", "#3A3A3A", "#307A3F", "#2A9E4A", "#1AC656"])
         .clamp(true);
     return scale(percentageChange);
   }, []);
@@ -288,7 +305,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       }
       const svg = d3.select(svgRef.current);
       const sectorPopup = d3.select<HTMLDivElement, unknown>("#sector-popup");
-      const highlightColor = "rgba(50, 100, 200, 0.7)"; // Semi-transparent blue
+      const highlightColor = "#541d97"; // <-- Change color to specified hex code
       const frameClass = "sector-highlight-frame";
       const cornerRadius = 8; // Desired outer corner radius
 
@@ -336,8 +353,8 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         Z
       `;
       
-      // Append the path element
-      svg.append("path")
+      // Insert the path element BEFORE the first sector label
+      svg.insert("path", ".sector-label") // <-- Use insert() instead of append()
          .attr("class", frameClass)
          .attr("d", pathData)
          .attr("fill", highlightColor)
@@ -353,7 +370,11 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                 const styleProps = getPercentageStyle(percentage);
                 const companyName = stock.data.name ? ` (${stock.data.name})` : ''; // Get company name if available
                 // Add class="sector-popup-item" and border/padding styles
-                listHtml += `<li class="sector-popup-item" style="margin-bottom: 3px; padding-bottom: 3px; border-bottom: 1px solid #444; font-size: 0.9em;"><strong>${stock.data.symbol}${companyName}</strong>: <span style="color:${styleProps.color}; font-weight:${styleProps.fontWeight}; text-shadow:${styleProps.textShadow};">${formatPercentage(percentage)}</span></li>`;
+                // Conditionally display % change or note for historical
+                const changeHtml = selectedDate === null 
+                    ? `<span style="color:${styleProps.color}; font-weight:${styleProps.fontWeight}; text-shadow:${styleProps.textShadow};">${formatPercentage(percentage)}</span>`
+                    : `<span style="color:#aaaaaa; font-size: 0.8em;">(EOD)</span>`; // Indicate End-of-Day view
+                listHtml += `<li class="sector-popup-item" style="margin-bottom: 3px; padding-bottom: 3px; border-bottom: 1px solid #444; font-size: 0.9em;"><strong>${stock.data.symbol}${companyName}</strong>: ${changeHtml}</li>`;
             });
       listHtml += "</ul>";
 
@@ -364,7 +385,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                      .style("left", `${event.pageX + 20}px`)
                      .style("top", `${event.pageY - 15}px`);
       }
-  }, [formatPercentage, getPercentageStyle]); // Dependencies: formatting and styling functions
+  }, [formatPercentage, getPercentageStyle, selectedDate]); // Dependencies: formatting and styling functions
 
   const sectorMouseoutHandler = useCallback(() => {
       // Don't hide immediately, start a timer
@@ -416,7 +437,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             .style("border-radius", "6px")
             .style("padding", "10px")
             .style("color", "#ffffff")
-            .style("font-size", "11px")
+            .style("font-size", "12px")
             .style("pointer-events", "auto") // <-- CHANGE to auto
             .style("max-height", "300px") // Prevent excessive height
             .style("overflow-y", "auto") // Allow scrolling if list is long
@@ -509,9 +530,21 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
               .attr("fill", "#ffffff"); 
             const percentage = d.data.changesPercentage ?? 0;
             const formattedPercentage = formatPercentage(percentage);
-            const marketCapFormatted = d3.format(".3s")(d.data.marketCap ?? 0);
-            const companyName = d.data.name ? ` (${d.data.name})` : ''; // Get company name if available
-            const tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/><span>${formattedPercentage}</span><br/>Mkt Cap: ${marketCapFormatted}`;
+            // Conditionally create tooltip HTML
+            let tooltipHtml = '';
+            if (selectedDate === null) {
+                 // Live view: Show Name, %, Mkt Cap
+                const marketCapFormatted = d3.format(".3s")(d.data.marketCap ?? 0);
+                const companyName = d.data.name ? ` (${d.data.name})` : ''; 
+                const changeSpan = `<span>${formattedPercentage}</span>`;
+                tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/>${changeSpan}<br/>Mkt Cap: ${marketCapFormatted}`;
+            } else {
+                // Historical view: Show Symbol, EOD Value (Close/Volume used for size)
+                 const historicalValue = d.data.marketCap ?? 0; // marketCap field now holds volume/close
+                 // Format differently depending on if it looks like volume or price
+                 const valueFormatted = historicalValue > 10000 ? d3.format(".3s")(historicalValue) : historicalValue.toFixed(2);
+                tooltipHtml = `<strong>${d.data.symbol}</strong><br/>EOD Val: ${valueFormatted}<br/>(${formattedDate})`;
+            }
             
             tileTooltip.transition().duration(100).style("opacity", 0.9);
             tileTooltip.html(tooltipHtml)
@@ -581,9 +614,10 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             enter => enter.append('text')
                 .attr('class', 'sector-label')
                 .style('fill', '#eee')
-                .style('font-size', '12px').style('font-weight', '500')
+                .style('font-size', '12px').style('font-weight', '700')
                 .attr('text-anchor', 'start')
-                .attr('y', d => d.y0 + 15).attr('dx', 10)
+                .attr('y', d => d.y0 + 10)
+                .attr('dx', 10)
                 .style('pointer-events', 'all')
                 .style('cursor', 'pointer')
                 .on("mouseover", (event, d) => sectorMouseoverHandler(event, d))
@@ -597,7 +631,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             exit => exit.remove()
         )
         .attr('x', d => d.x0)
-        .attr('y', d => d.y0 + 15)
+        .attr('y', d => d.y0 + 10)
         .attr('dx', 10)
         .text(d => d.data.name + ' >')
         .each(function(_d: d3.HierarchyRectangularNode<TreeNodeData>) { 
@@ -624,7 +658,182 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             }
         });
 
-  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor, getPercentageStyle, sectorMouseoverHandler, sectorMouseoutHandler]); // ADDED handlers back to dependencies
+  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor, getPercentageStyle, sectorMouseoverHandler, sectorMouseoutHandler, selectedDate]); // ADDED handlers back to dependencies
+
+  // --- Fetch data effect (modified) ---
+  useEffect(() => {
+    if (!API_KEY) {
+        setError("API Key is missing.");
+        setIsLoading(false);
+        return;
+    }
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      setStockData(null);
+      
+      const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS];
+      const indexName = activeIndex;
+
+      if (!CONSTITUENTS_URL) {
+          setError(`Endpoint not defined for index type "${activeIndex}".`);
+          setIsLoading(false);
+          return;
+      }
+
+      console.log(`>>> Fetching ${indexName} constituents...`);
+      let symbols: string[] = [];
+      // Revert to just storing sector
+      let sectorMap: { [key: string]: string } = {}; 
+
+      try {
+        const constituentsResponse = await fetch(CONSTITUENTS_URL);
+        if (!constituentsResponse.ok) throw new Error(`Failed to fetch ${indexName} list: ${constituentsResponse.status}`);
+        const constituentsData = await constituentsResponse.json();
+        if (!Array.isArray(constituentsData)) throw new Error(`Invalid data format for ${indexName} constituents.`);
+        
+        // Process constituents to get symbols and sector
+        constituentsData.forEach((stock: any) => {
+            if (stock.symbol) { 
+                symbols.push(stock.symbol); 
+                sectorMap[stock.symbol] = stock.sector || "Other";
+            }
+        });
+        if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
+        console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching data...`);
+
+        let combinedData: StockQuote[] = [];
+
+        if (!formattedDate) {
+            // --- LIVE DATA LOGIC (Existing) --- 
+            const QUOTE_URL = `${API_BASE_URL}/quote/${symbols.join(',')}?apikey=${API_KEY}`;
+            const quoteResponse = await fetch(QUOTE_URL);
+            if (!quoteResponse.ok) throw new Error(`Failed to fetch ${indexName} live quotes: ${quoteResponse.status}`);
+            const quoteData = await quoteResponse.json();
+            if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} live quotes.`);
+            console.log(`>>> Received ${quoteData.length} ${indexName} live quotes. Combining...`);
+            
+             const combinedDataWithNulls = quoteData.map((quote: any) => {
+                 if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
+                 const sector = sectorMap[quote.symbol];
+                 if (!sector) return null; 
+                 // Construct object matching StockQuote more closely
+                 const stockQuoteItem: StockQuote = {
+                    symbol: quote.symbol as string, 
+                    name: quote.name as string | undefined, 
+                    marketCap: quote.marketCap as number,
+                    changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
+                    sector: sector,
+                };
+                 return stockQuoteItem;
+             });
+             combinedData = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
+             // --- END LIVE DATA LOGIC ---
+        } else {
+            // --- HISTORICAL DATA LOGIC (Revised: Sequential Batching for EOD) --- 
+            console.log(`>>> Fetching HISTORICAL EOD for ${formattedDate}...`);
+            
+            const BATCH_SIZE = 50; // Number of symbols per API call (Further Reduced size)
+            let allEodData: any[] = []; // Array to hold results from all batches
+            
+            // Loop through symbols in batches
+            for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+                const symbolsChunk = symbols.slice(i, i + BATCH_SIZE);
+                console.log(`>>> Fetching EOD batch ${i / BATCH_SIZE + 1} for ${symbolsChunk.length} symbols...`);
+                
+                const EOD_URL = `${API_BASE_URL}/batch-request-end-of-day-prices?date=${formattedDate}&symbols=${symbolsChunk.join(',')}&apikey=${API_KEY}`;
+                
+                try {
+                    const eodResponse = await fetch(EOD_URL);
+
+                    if (!eodResponse.ok) {
+                        let apiErrorMsg = '';
+                        try { apiErrorMsg = (await eodResponse.json())?.message || `Status ${eodResponse.status}`; } catch (_) { apiErrorMsg = `Status ${eodResponse.status}`; }
+                        // Throw error but potentially allow proceeding if some batches succeed?
+                        // For now, throw and stop.
+                        throw new Error(`Batch ${i / BATCH_SIZE + 1} failed: ${apiErrorMsg}`);
+                    }
+                    
+                    const eodChunkResponse = await eodResponse.json();
+
+                    // --- Correct Data Extraction --- 
+                    // Check structure based on console log: { output: [...] }
+                    // Or maybe library returns array like [{ historical: [...] }] ?
+                    let eodChunkData: any[] = []; 
+                    if (Array.isArray(eodChunkResponse?.output)) {
+                         eodChunkData = eodChunkResponse.output;
+                    } else if (Array.isArray(eodChunkResponse)) { 
+                        // Handle cases where it might return [{symbol: ..., historical: {...}}] directly
+                        // Or maybe [{ historical: [...] }] ? Check API docs again if needed.
+                         eodChunkData = eodChunkResponse; // Assume it's the array if top level is array
+                         // If structure is [{ historical: [...] }], need further extraction: 
+                         // eodChunkData = eodChunkResponse[0]?.historical || [];
+                    } else {
+                         console.error(`Invalid EOD Chunk Data received (Batch ${i / BATCH_SIZE + 1}):`, eodChunkResponse);
+                         throw new Error(`Invalid data format in EOD batch ${i / BATCH_SIZE + 1}`);
+                    }
+                     // --- END Data Extraction ---
+
+                    console.log(`>>> Received ${eodChunkData.length} EOD results for batch ${i / BATCH_SIZE + 1}.`);
+                    allEodData = allEodData.concat(eodChunkData);
+
+                } catch (batchError) {
+                    // Handle error for a single batch - maybe log and continue?
+                    // For now, rethrow to stop the process on first failure.
+                     console.error(`Error fetching EOD batch ${i / BATCH_SIZE + 1}:`, batchError);
+                     throw batchError; // Stop processing if any batch fails
+                }
+
+                // --- ADD Delay before next batch (if not the last one) ---
+                if (i + BATCH_SIZE < symbols.length) {
+                    console.log(`>>> Waiting 2 seconds before next EOD batch...`); // Increased delay to 2s
+                    await delay(2000); // Increased delay to 2 seconds
+                }
+                // --- END Delay ---
+            }
+            // --- End Batch Loop ---
+
+            console.log(`>>> Total EOD results received: ${allEodData.length}. Combining...`);
+
+            // Combine EOD data with sector
+            const combinedHistDataWithNulls = allEodData.map((eod: any) => { // Map over combined results
+                if (!eod.symbol) return null;
+                const symbol = eod.symbol;
+                const sector = sectorMap[symbol];
+                const sizingValue = eod.volume ?? eod.close ?? 0;
+                if (!sector) return null; 
+                const stockQuoteItem: StockQuote = {
+                    symbol: symbol,
+                    name: undefined,
+                    marketCap: sizingValue,
+                    changesPercentage: 0,
+                    sector: sector,
+                };
+                return stockQuoteItem;
+            });
+            combinedData = combinedHistDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
+            // --- END HISTORICAL DATA LOGIC ---
+        }
+
+        // --- COMMON PROCESSING (After live or historical fetch) ---
+        combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG');
+        if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}${formattedDate ? ` on ${formattedDate}` : ''}.`);
+        console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
+
+        const hierarchicalData = transformData(combinedData);
+        if (!hierarchicalData) throw new Error(`Failed to transform ${indexName} data.`);
+        console.log(`>>> Data fetch successful for ${indexName}${formattedDate ? ` on ${formattedDate}` : ''}.`);
+        setStockData(hierarchicalData); setError(null);
+
+      } catch (err: any) {
+          console.error(`>>> FetchData Error (${indexName}):`, err);
+          setError(err.message || `An unknown error occurred (${indexName}).`); setStockData(null);
+      } finally {
+          setIsLoading(false); 
+      }
+    };
+    fetchData();
+  }, [activeIndex, API_KEY, selectedDate]); 
 
   // --- Render Logic ---
   return (
@@ -659,19 +868,27 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
           }}>
           {/* Index Tabs */}
           <div id="index-tabs">
-            {indexTabs.map((tab) => ( // Use indexTabs array
-                <button key={tab.id} onClick={() => setActiveIndex(tab.id)}
-                        disabled={isLoading} className={`index-tab ${activeIndex === tab.id ? 'active' : ''}`}
-                        style={{ marginRight: '2px', cursor: isLoading ? 'default' : 'pointer' }}>
+            {indexTabs.map((tab) => ( // Revert back to simpler map
+                <button 
+                  key={tab.id} 
+                  onClick={() => setActiveIndex(tab.id)}
+                  disabled={isLoading} 
+                  className={`index-tab ${activeIndex === tab.id ? 'active' : ''}`} // Keep className logic
+                  style={{ 
+                    marginRight: '2px', // Restore original inline styles
+                    cursor: isLoading ? 'default' : 'pointer' 
+                    // Remove other base styles (border, padding, bg, color) - apply via CSS if needed
+                    // Remove spread activeStyle
+                   }}>
                     {tab.name}
               </button>
-          ))}
-      </div>
+            ))}
+          </div>
 
           {/* MOVED Description Area - now inline with header */}
           <div id="heatmap-description" style={{
                   margin: '0 20px', // Add some horizontal margin for spacing
-                  color: '#999999',
+                  color: '#dddddd',
                   fontSize: '10pt', 
                   textAlign: 'center', // Center text within its available space
                   flexGrow: 1 // Allow it to take up available middle space
@@ -703,9 +920,19 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             marginTop: '5px', backgroundColor: '#0a0a0a', flexShrink: 0,
             borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px'
           }}>
-            {/* Date Button Container */}
+            {/* Date Button Container - Using DatePicker with Custom Input */}
             <div id="date-search-placeholder">
-                <button className="date-button">D</button>
+                 <DatePicker
+                    selected={selectedDate} 
+                    onChange={(date: Date | null) => setSelectedDate(date)}
+                    customInput={<button className="date-button">D</button>} 
+                    dateFormat="yyyy-MM-dd"
+                    placeholderText="Live / Select Date" 
+                    isClearable 
+                    popperPlacement="right-start"
+                    maxDate={new Date()}
+                    // portalId="root-portal"
+                  />
             </div>
             {/* Legend Container */}
             <div id="legend-container" style={{ display: 'flex' }}>

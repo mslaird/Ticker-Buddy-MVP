@@ -44,7 +44,7 @@ body {
 /* REMOVE Base styles for ALL tabs */
 /* .index-tab { ... } */
 
-/* REMOVE Active tab background/radius ONLY */
+/* REMOVE Active tab background/padding */
 /* .index-tab.active { ... } */
 
 /* KEEP Disabled tab styling */
@@ -161,5 +161,170 @@ body {
      margin-right: 3px;
   }
 }
+
+/* ... any other existing code ... */
+
+/* --- DatePicker Custom Styles --- */
+
+/* Overall popup container */
+.react-datepicker-popper {
+  z-index: 1000 !important; /* Ensure popup is on top */
+}
+
+.react-datepicker {
+  font-family: 'Roboto', sans-serif !important; /* Match main font */
+  border: 2px solid #00cc00 !important; /* Green border - INCREASED to 2px */
+  background-color: #0a0a0a !important; /* Body background */
+  border-radius: 4px !important; /* Match other popups/widget - REDUCED from 6px */
+  color: #ffffff !important; /* Default white text */
+}
+
+/* Header section (Month, Year, Arrows) */
+.react-datepicker__header {
+  background-color: #1f1f1f !important; /* Specific header background */
+  border-bottom: 1px solid #333 !important; /* Separator line */
+  padding-top: 8px !important;
+  /* Adjust header radius to match */
+  border-top-left-radius: 3px !important; /* Adjust slightly less than main radius */
+  border-top-right-radius: 3px !important;
+}
+
+/* Month/Year text in header */
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: #ffffff !important; /* White font */
+  font-weight: bold !important;
+  font-size: 0.95rem !important;
+  padding-bottom: 8px; /* Add padding below month/year */
+}
+
+/* Navigation arrows - Adjust position */
+.react-datepicker__navigation-icon::before {
+ border-color: #ffffff !important; /* White arrows */
+ border-width: 2px 2px 0 0 !important;
+ height: 7px !important;
+ width: 7px !important;
+ /* top: 10px !important; */ /* Remove fixed top from icon */
+}
+.react-datepicker__navigation--previous {
+    left: 10px !important;
+    top: 7px !important; /* RAISE arrows */
+}
+.react-datepicker__navigation--next {
+    right: 10px !important;
+     top: 7px !important; /* RAISE arrows */
+}
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+    border-color: #bbbbbb !important; /* Lighter grey on hover */
+}
+
+
+/* Day Names (Mo, Tu, We...) */
+.react-datepicker__day-name {
+  color: #ffffff !important; /* White font */
+  font-weight: bold !important;
+  margin: 0.2rem !important;
+}
+
+/* Day Numbers container */
+.react-datepicker__month {
+  background-color: #0a0a0a !important; /* Ensure body bg */
+  margin: 0 !important; /* Remove default margin if needed */
+  padding: 5px; /* Add some padding around days */
+}
+
+/* Day Numbers */
+.react-datepicker__day {
+  color: #ffffff !important; /* White font */
+  margin: 0.2rem !important;
+  border-radius: 0.3rem !important;
+  width: 1.9rem !important; /* Adjust size if needed */
+  line-height: 1.9rem !important;
+}
+
+/* Day Hover - Use NEW even darker grey */
+.react-datepicker__day:hover {
+  background-color: #222222 !important; /* NEW Even darker grey hover */
+  border-radius: 0.3rem !important;
+  color: #ffffff !important;
+}
+
+/* Selected Day - Use the color that WAS the hover color */
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected { /* Target keyboard selection state too */
+  background-color: #2a2a2a !important; /* Use #2a2a2a (old hover color) */
+  color: #ffffff !important;
+  font-weight: bold !important;
+  outline: none !important; /* Remove focus outline */
+  box-shadow: none !important; /* Remove focus shadow */
+}
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--keyboard-selected:hover {
+    background-color: #383838 !important; /* Darken the NEW selected bg slightly on hover */
+}
+/* Explicitly style focus state to prevent default blue */
+.react-datepicker__day--selected:focus,
+.react-datepicker__day--keyboard-selected:focus {
+    background-color: #2a2a2a !important; 
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Today's Day (remove default outline) */
+.react-datepicker__day--today {
+  font-weight: bold !important;
+   outline: none;
+}
+
+/* Days outside current month */
+.react-datepicker__day--outside-month {
+  color: #666666 !important; 
+  cursor: default;
+}
+.react-datepicker__day--outside-month:hover {
+    background-color: transparent !important; 
+}
+
+
+/* Triangle arrow pointing to the button - Restyle */
+/* --- UNCOMMENTING --- */
+/* REMOVE Comment Start */
+/* ::before creates the border - Even More specific selector & explicit styles */
+.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle.react-datepicker__triangle::before {
+    content: "" !important; /* Ensure content exists */
+    position: absolute !important;
+    border-style: solid !important;
+    border-width: 8px 8px 8px 0 !important; /* T, R, B, L - Adjust size if needed */
+    border-color: transparent #00cc00 transparent transparent !important; 
+    left: 1px !important; /* Offset slightly from ::after */
+    /* top: needs adjustment based on parent */
+}
+/* ::after creates the fill - Even More specific selector & explicit styles */
+.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle.react-datepicker__triangle::after {
+     content: "" !important; /* Ensure content exists */
+     position: absolute !important;
+     border-style: solid !important;
+     border-width: 7px 7px 7px 0 !important; /* Slightly smaller */
+     border-color: transparent #0a0a0a transparent transparent !important; 
+     left: 2px !important; /* Position inside ::before */
+     /* top: needs adjustment based on parent */
+}
+
+/* Adjust position based on potential border differences */
+/* Main triangle element might just need to control position */
+.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle {
+    left: -10px !important; /* Keep adjusted position for now */
+    right: auto !important;
+    /* Remove default border/color from main element if library adds it */
+    border: none !important; 
+    color: transparent !important; 
+}
+/* REMOVE Comment End */
+/* --- End Uncomment --- */
+
+
+/* --- End DatePicker Styles --- */
+
 
 /* ... any other existing code ... */ 
