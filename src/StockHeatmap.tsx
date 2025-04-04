@@ -41,6 +41,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hidePopupTimerRef = useRef<number | null>(null); // <-- Use number type for timer ID
 
   // --- Constants (Ported from StockHeatmap.js, adjust as needed) ---
   // Load API key securely from environment variables using Vite's convention
@@ -66,6 +67,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       RUT: "Russell 2000 index stocks (small-cap US stocks) categorized by sectors. Size represents market cap."
   };
   const MIN_RECT_HEIGHT_FOR_CHANGE = 25;
+  // Define treemap padding constants for reuse
+  const PADDING_TOP = 20;
+  const PADDING_RIGHT = 2;
+  const PADDING_BOTTOM = 2;
+  const PADDING_LEFT = 2;
+  const PADDING_INNER = 2;
 
   // Define tab configurations using uppercase IDs
   const indexTabs = [
@@ -77,12 +84,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
   // --- Helper Functions (Define BEFORE useEffect that uses them) ---
 
-  // Color calculation logic (Reverted red spectrum)
+  // Color calculation logic (Adjusted for medium vibrance)
   const calculateColor = useCallback((percentageChange: number): string => {
     const scale = d3.scaleLinear<string>()
         .domain([-3, -2, -1, 0, 1, 2, 3])
-        // Revert range back to the previous version
-        .range(["#D31245", "#B01E3C", "#8B2534", "#3A3A3A", "#2E7A3E", "#279B48", "#17C653"])
+        // Intermediate range for medium vibrance
+        .range(["#C3294F", "#A72847", "#852D3B", "#3A3A3A", "#3A8049", "#38A056", "#32C767"])
         .clamp(true);
     return scale(percentageChange);
   }, []);
@@ -270,38 +277,84 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
   // --- Handler Functions for Sector Hover (Defined BEFORE useEffect) --- 
   const sectorMouseoverHandler = useCallback((event: MouseEvent, d: d3.HierarchyRectangularNode<TreeNodeData>) => {
+      // Clear any pending hide timer immediately on mouse enter
+      if (hidePopupTimerRef.current) {
+          clearTimeout(hidePopupTimerRef.current);
+          hidePopupTimerRef.current = null;
+      }
+
       if (!svgRef.current) {
           return;
       }
       const svg = d3.select(svgRef.current);
       const sectorPopup = d3.select<HTMLDivElement, unknown>("#sector-popup");
+      const highlightColor = "rgba(50, 100, 200, 0.7)"; // Semi-transparent blue
+      const frameClass = "sector-highlight-frame";
+      const cornerRadius = 8; // Desired outer corner radius
+
+      // Remove any existing frames first
+      svg.selectAll(`.${frameClass}`).remove();
       
-      // Add Highlight Rect (Styled as a border now)
-      svg.append("rect")
-         .attr("class", "sector-highlight-overlay") 
-         .attr("x", d.x0)
-         .attr("y", d.y0)
-         .attr("width", d.x1 - d.x0)
-         .attr("height", d.y1 - d.y0)
-         .attr("fill", "none") // <-- Make fill transparent
-         .attr("stroke", "#ffffff") // <-- Set stroke color to white
-         .attr("stroke-width", 2) // <-- Set stroke width
+      // --- Add Highlight Frame using SVG Path --- 
+      const x0 = d.x0 ?? 0;
+      const y0 = d.y0 ?? 0;
+      const x1 = d.x1 ?? 0;
+      const y1 = d.y1 ?? 0;
+      
+      // Inner bounds based on padding
+      const ix0 = x0 + PADDING_LEFT;
+      const iy0 = y0 + PADDING_TOP;
+      const ix1 = x1 - PADDING_RIGHT;
+      const iy1 = y1 - PADDING_BOTTOM;
+      
+      // Ensure radius isn't larger than half the smaller dimension of the *padding area*
+      // This prevents weird arc overlaps in very thin padding areas.
+      const effectiveRadius = Math.min(
+          cornerRadius, 
+          (x1 - x0) / 2, 
+          (y1 - y0) / 2, 
+          (ix1 - ix0) / 2, // Check inner width too
+          (iy1 - iy0) / 2  // Check inner height too
+      ); 
+
+      // Construct the path string 'd'
+      const pathData = `
+        M ${x0 + effectiveRadius},${y0} 
+        L ${x1 - effectiveRadius},${y0} 
+        A ${effectiveRadius},${effectiveRadius} 0 0 1 ${x1},${y0 + effectiveRadius} 
+        L ${x1},${y1 - effectiveRadius} 
+        A ${effectiveRadius},${effectiveRadius} 0 0 1 ${x1 - effectiveRadius},${y1} 
+        L ${x0 + effectiveRadius},${y1} 
+        A ${effectiveRadius},${effectiveRadius} 0 0 1 ${x0},${y1 - effectiveRadius} 
+        L ${x0},${y0 + effectiveRadius} 
+        A ${effectiveRadius},${effectiveRadius} 0 0 1 ${x0 + effectiveRadius},${y0} 
+        Z 
+        M ${ix0},${iy0} 
+        L ${ix0},${iy1} 
+        L ${ix1},${iy1} 
+        L ${ix1},${iy0} 
+        Z
+      `;
+      
+      // Append the path element
+      svg.append("path")
+         .attr("class", frameClass)
+         .attr("d", pathData)
+         .attr("fill", highlightColor)
+         .attr("fill-rule", "evenodd") // Important for donut shape
          .style("pointer-events", "none");
 
       // Prepare Popup Content
       const stocks = d.leaves() as LeafNode[]; 
       let listHtml = `<h3 style="margin: 0 0 5px 0; padding-bottom: 3px; border-bottom: 1px solid #555;">${d.data.name}</h3><ul style="margin: 0; padding-left: 15px; list-style: none; max-height: 150px; overflow-y: auto;">`;
       stocks.sort((a, b) => (b.data.marketCap ?? 0) - (a.data.marketCap ?? 0))
-            .slice(0, 10) // Limit to top 10 by market cap for brevity
             .forEach(stock => {
                 const percentage = stock.data.changesPercentage ?? 0;
-                const styleProps = getPercentageStyle(percentage); // Use existing style function
+                const styleProps = getPercentageStyle(percentage);
                 const companyName = stock.data.name ? ` (${stock.data.name})` : ''; // Get company name if available
-                listHtml += `<li style="margin-bottom: 3px; font-size: 0.9em;"><strong>${stock.data.symbol}${companyName}</strong>: <span style="color:${styleProps.color}; font-weight:${styleProps.fontWeight}; text-shadow:${styleProps.textShadow};">${formatPercentage(percentage)}</span></li>`;
+                // Add class="sector-popup-item" and border/padding styles
+                listHtml += `<li class="sector-popup-item" style="margin-bottom: 3px; padding-bottom: 3px; border-bottom: 1px solid #444; font-size: 0.9em;"><strong>${stock.data.symbol}${companyName}</strong>: <span style="color:${styleProps.color}; font-weight:${styleProps.fontWeight}; text-shadow:${styleProps.textShadow};">${formatPercentage(percentage)}</span></li>`;
             });
-      if (stocks.length > 10) {
-          listHtml += `<li style="margin-top: 5px; font-style: italic; font-size: 0.8em;">...and ${stocks.length - 10} more</li>`;
-      }
       listHtml += "</ul>";
 
       // Show and Position Popup
@@ -314,13 +367,19 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   }, [formatPercentage, getPercentageStyle]); // Dependencies: formatting and styling functions
 
   const sectorMouseoutHandler = useCallback(() => {
-      if (!svgRef.current) {
-           return; // Need svgRef here too
+      // Don't hide immediately, start a timer
+      // Clear any existing timer first (belt and suspenders)
+      if (hidePopupTimerRef.current) {
+          clearTimeout(hidePopupTimerRef.current);
       }
-      // Remove Highlight Rect
-      d3.select(svgRef.current).select(".sector-highlight-overlay").remove();
-      // Hide Popup
-      d3.select<HTMLDivElement, unknown>("#sector-popup").transition().duration(200).style("opacity", 0);
+      hidePopupTimerRef.current = setTimeout(() => {
+          if (!svgRef.current) return; 
+          // Remove Highlight Frame 
+          d3.select(svgRef.current).selectAll(".sector-highlight-frame").remove();
+          // Hide Popup
+          d3.select<HTMLDivElement, unknown>("#sector-popup").transition().duration(200).style("opacity", 0);
+           hidePopupTimerRef.current = null; // Clear ref after execution
+      }, 300); // 300ms delay - adjust as needed
   }, []); // No external dependencies needed here
 
   // --- Main D3 Rendering Effect ---
@@ -358,10 +417,32 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             .style("padding", "10px")
             .style("color", "#ffffff")
             .style("font-size", "11px")
-            .style("pointer-events", "none") // Must not block events
+            .style("pointer-events", "auto") // <-- CHANGE to auto
             .style("max-height", "300px") // Prevent excessive height
             .style("overflow-y", "auto") // Allow scrolling if list is long
             .style("z-index", "998"); // Slightly below tile tooltip if overlaps occur
+        
+        // --- Add mouse listeners directly to the popup --- 
+        sectorPopup
+            .on("mouseenter", () => {
+                // When mouse enters the popup, clear the hide timer
+                if (hidePopupTimerRef.current) {
+                    clearTimeout(hidePopupTimerRef.current);
+                    hidePopupTimerRef.current = null;
+                }
+            })
+            .on("mouseleave", () => {
+                // When mouse leaves the popup, START the hide timer
+                if (hidePopupTimerRef.current) {
+                    clearTimeout(hidePopupTimerRef.current);
+                }
+                hidePopupTimerRef.current = setTimeout(() => {
+                    if (!svgRef.current) return;
+                    d3.select(svgRef.current).selectAll(".sector-highlight-frame").remove();
+                    sectorPopup.transition().duration(200).style("opacity", 0);
+                    hidePopupTimerRef.current = null; 
+                }, 300); // Use the same 300ms delay
+            });
     }
 
     if (!stockData || !svgElement) {
@@ -384,11 +465,11 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
     const treemapLayout = d3.treemap<TreeNodeData>()
         .size([svgWidth, svgHeight])
-        .paddingTop(20)
-        .paddingRight(2)
-        .paddingBottom(2)
-        .paddingLeft(2)
-        .paddingInner(2)
+        .paddingTop(PADDING_TOP)     // Use constant
+        .paddingRight(PADDING_RIGHT)   // Use constant
+        .paddingBottom(PADDING_BOTTOM) // Use constant
+        .paddingLeft(PADDING_LEFT)     // Use constant
+        .paddingInner(PADDING_INNER)   // Use constant
         .tile(d3.treemapSquarify); 
 
     const root = treemapLayout(stockData);
@@ -556,12 +637,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         margin: '20px auto' 
     }}>
       {/* Inner div - Fill the outer div */}
-      <div
-        ref={containerRef}
-        style={{
+    <div
+      ref={containerRef}
+      style={{
             width: '100%',
             height: '100%', // Fill outer div
-            border: '0.5px solid #00cc00',
+          border: '0.5px solid #00cc00',
             borderRadius: '8px', backgroundColor: '#0a0a0a',
             position: 'relative', color: '#ffffff', fontFamily: 'Roboto, sans-serif',
             display: 'flex', flexDirection: 'column',
@@ -573,7 +654,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             display: 'flex', 
             alignItems: 'baseline',
             padding: '0 10px 0 0', 
-            borderBottom: '0.5px solid #00cc00', 
+            borderBottom: '0.5px solid #00cc00',
             flexShrink: 0
           }}>
           {/* Index Tabs */}
@@ -585,8 +666,8 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                     {tab.name}
               </button>
           ))}
-          </div>
-          
+      </div>
+
           {/* MOVED Description Area - now inline with header */}
           <div id="heatmap-description" style={{
                   margin: '0 20px', // Add some horizontal margin for spacing
