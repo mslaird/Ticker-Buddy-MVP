@@ -172,31 +172,28 @@ body {
 }
 
 .react-datepicker {
-  font-family: 'Roboto', sans-serif !important; /* Match main font */
-  border: 2px solid #00cc00 !important; /* Green border - INCREASED to 2px */
-  background-color: #0a0a0a !important; /* Body background */
-  border-radius: 4px !important; /* Match other popups/widget - REDUCED from 6px */
-  color: #ffffff !important; /* Default white text */
+  font-family: 'Roboto', sans-serif !important;
+  background-color: #181818 !important; /* Darker background to match theme */
+  border: 1px solid #00cc00 !important; /* Changed border to 1px */
+  border-radius: 2px !important; /* Reduced radius further */
 }
 
 /* Header section (Month, Year, Arrows) */
 .react-datepicker__header {
-  background-color: #1f1f1f !important; /* Specific header background */
-  border-bottom: 1px solid #333 !important; /* Separator line */
-  padding-top: 8px !important;
-  /* Adjust header radius to match */
-  border-top-left-radius: 3px !important; /* Adjust slightly less than main radius */
-  border-top-right-radius: 3px !important;
+  background-color: #222 !important;
+  border-bottom: 1px solid #444 !important;
+  /* Adjust header radius to fit inside the main radius */
+  border-top-left-radius: 1px !important; /* Slightly less than main radius */
+  border-top-right-radius: 1px !important;
 }
 
 /* Month/Year text in header */
 .react-datepicker__current-month,
 .react-datepicker-time__header,
-.react-datepicker-year-header {
-  color: #ffffff !important; /* White font */
-  font-weight: bold !important;
-  font-size: 0.95rem !important;
-  padding-bottom: 8px; /* Add padding below month/year */
+.react-datepicker-year-header,
+.react-datepicker__day-name,
+.react-datepicker__navigation-icon::before {
+  color: #eee !important;
 }
 
 /* Navigation arrows - Adjust position */
@@ -219,7 +216,6 @@ body {
     border-color: #bbbbbb !important; /* Lighter grey on hover */
 }
 
-
 /* Day Names (Mo, Tu, We...) */
 .react-datepicker__day-name {
   color: #ffffff !important; /* White font */
@@ -236,39 +232,64 @@ body {
 
 /* Day Numbers */
 .react-datepicker__day {
-  color: #ffffff !important; /* White font */
+  color: #ccc !important;
   margin: 0.2rem !important;
   border-radius: 0.3rem !important;
   width: 1.9rem !important; /* Adjust size if needed */
   line-height: 1.9rem !important;
 }
 
-/* Day Hover - Use NEW even darker grey */
+/* Day Hover - Make more distinct */
 .react-datepicker__day:hover {
-  background-color: #222222 !important; /* NEW Even darker grey hover */
+  background-color: #555 !important; /* Lighter grey for general hover */
   border-radius: 0.3rem !important;
-  color: #ffffff !important;
+  color: #fff !important;
 }
 
-/* Selected Day - Use the color that WAS the hover color */
-.react-datepicker__day--selected,
-.react-datepicker__day--keyboard-selected { /* Target keyboard selection state too */
-  background-color: #2a2a2a !important; /* Use #2a2a2a (old hover color) */
-  color: #ffffff !important;
+/* --- Selected vs Keyboard-Selected Styling --- */
+
+/* ACTUALLY Selected Day (Keep Green) */
+.react-datepicker__day--selected {
+  background-color: #007700 !important; /* Darker green selection */
+  color: #fff !important;
   font-weight: bold !important;
   outline: none !important; /* Remove focus outline */
-  box-shadow: none !important; /* Remove focus shadow */
 }
-.react-datepicker__day--selected:hover,
-.react-datepicker__day--keyboard-selected:hover {
-    background-color: #383838 !important; /* Darken the NEW selected bg slightly on hover */
+/* Hover state for ACTUALLY selected */
+.react-datepicker__day--selected:hover {
+    background-color: #005500 !important; /* Slightly darker green on hover */
 }
-/* Explicitly style focus state to prevent default blue */
-.react-datepicker__day--selected:focus,
-.react-datepicker__day--keyboard-selected:focus {
-    background-color: #2a2a2a !important; 
+/* Focus state for ACTUALLY selected */
+.react-datepicker__day--selected:focus {
+    background-color: #007700 !important; /* Keep green on focus */
     outline: none !important;
     box-shadow: none !important;
+}
+
+/* Keyboard-Selected Day (Use Dark Grey) */
+.react-datepicker__day--keyboard-selected {
+  background-color: #333 !important; /* Use the hover grey color */
+  color: #fff !important;
+  /* Remove bolding if it was inherited */
+   font-weight: normal !important; 
+  outline: none !important; /* Remove focus outline */
+}
+/* Hover state for keyboard-selected */
+.react-datepicker__day--keyboard-selected:hover {
+    background-color: #444 !important; /* Slightly lighter grey on hover? Or keep #333 */
+}
+/* Focus state for keyboard-selected */
+.react-datepicker__day--keyboard-selected:focus {
+    background-color: #333 !important; /* Keep grey on focus */
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Disabled Day (Future dates) */
+.react-datepicker__day--disabled {
+  color: #666 !important; /* Greyed out text */
+  background-color: transparent !important; /* Ensure no background hover */
+  pointer-events: none !important; /* Make unclickable and remove hover effects */
 }
 
 /* Today's Day (remove default outline) */
@@ -286,45 +307,100 @@ body {
     background-color: transparent !important; 
 }
 
-
-/* Triangle arrow pointing to the button - Restyle */
-/* --- UNCOMMENTING --- */
-/* REMOVE Comment Start */
-/* ::before creates the border - Even More specific selector & explicit styles */
-.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle.react-datepicker__triangle::before {
-    content: "" !important; /* Ensure content exists */
-    position: absolute !important;
-    border-style: solid !important;
-    border-width: 8px 8px 8px 0 !important; /* T, R, B, L - Adjust size if needed */
-    border-color: transparent #00cc00 transparent transparent !important; 
-    left: 1px !important; /* Offset slightly from ::after */
-    /* top: needs adjustment based on parent */
-}
-/* ::after creates the fill - Even More specific selector & explicit styles */
-.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle.react-datepicker__triangle::after {
-     content: "" !important; /* Ensure content exists */
-     position: absolute !important;
-     border-style: solid !important;
-     border-width: 7px 7px 7px 0 !important; /* Slightly smaller */
-     border-color: transparent #0a0a0a transparent transparent !important; 
-     left: 2px !important; /* Position inside ::before */
-     /* top: needs adjustment based on parent */
+/* Popper Arrow - Hide it completely */
+.react-datepicker-popper > .react-datepicker__triangle {
+    display: none !important;
 }
 
-/* Adjust position based on potential border differences */
-/* Main triangle element might just need to control position */
-.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle {
-    left: -10px !important; /* Keep adjusted position for now */
-    right: auto !important;
-    /* Remove default border/color from main element if library adds it */
-    border: none !important; 
-    color: transparent !important; 
+/* REMOVE rule targeting the inner path as it's no longer needed */
+/* 
+.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle path {
+    stroke: #00cc00 !important; 
+    fill: #181818 !important; 
+    stroke-width: 1px; 
 }
-/* REMOVE Comment End */
-/* --- End Uncomment --- */
-
+*/
 
 /* --- End DatePicker Styles --- */
 
+/* ... any other existing code ... */
+
+/* --- Live Indicator Styles --- */
+/* ... existing styles ... */
+
+/* ... any other existing code ... */
+
+/* --- Index Tab Styles (Using pseudo-element for active) --- */
+.index-tab {
+  background-color: #2a2a2a; 
+  color: #999999; /* Changed from #ffffff */
+  /* Revert back to GREEN borders for top/left/right */
+  border-top: 0.5px solid #00cc00;
+  border-left: 0.5px solid #00cc00;
+  border-right: 0.5px solid #00cc00;
+  border-bottom: none; /* Keep bottom none */
+  padding: 8px 15px;
+  cursor: pointer;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  font-size: 10pt;
+  transition: background-color 0.2s, color 0.2s;
+  /* Set position but lower z-index for stacking context */
+  position: relative;
+  z-index: 0;
+}
+
+.index-tab:hover {
+  background-color: #383838;
+  color: #fff;
+  /* Ensure hover keeps GREEN border */
+  border-top-color: #00cc00;
+  border-left-color: #00cc00;
+  border-right-color: #00cc00;
+  border-bottom: none; /* Keep bottom none */
+}
+
+/* Override hover for the ACTIVE tab */
+.active:hover { 
+  background-color: #0a0a0a; 
+  color: #fff; 
+  cursor: default; 
+  /* Keep active borders (T, R, L), bottom handled by ::after */
+  border-top-color: #00cc00;
+  border-left-color: #00cc00;
+  border-right-color: #00cc00;
+  border-bottom: none; /* Ensure no bottom border on hover */
+}
+
+/* Style for the ACTIVE tab (Overrides .index-tab) */
+.active { 
+  background-color: #0a0a0a; 
+  color: #fff; 
+  /* Keep Green top/left/right borders */
+  border-top: 0.5px solid #00cc00;
+  border-left: 0.5px solid #00cc00;
+  border-right: 0.5px solid #00cc00;
+  /* REMOVE bottom border and margin */
+  border-bottom: none; 
+  /* Keep positioned for pseudo-element and stacking */
+  position: relative; 
+  z-index: 1; 
+}
+
+/* Pseudo-element to cover the header border */
+.active::after {
+  content: '';
+  position: absolute;
+  /* Position at bottom, slightly overlapping header line */
+  bottom: -0.5px;
+  left: 0;
+  width: 100%;
+  /* Height sufficient to cover 0.5px border */
+  height: 1px; 
+  /* Match active background to "erase" header line */
+  background-color: #0a0a0a; 
+  /* Ensure it sits above header line, below content if needed */
+  z-index: 2; 
+}
 
 /* ... any other existing code ... */ 

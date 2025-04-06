@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, forwardRef } from 'react';
 import * as d3 from 'd3'; // We'll likely need D3
 // Import DatePicker and its CSS
 import DatePicker from "react-datepicker";
@@ -36,6 +36,19 @@ type LeafNode = d3.HierarchyRectangularNode<TreeNodeData & StockQuote>;
 // Helper function for async delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// --- Custom Input Button Component ---
+interface DateButtonProps {
+  value?: string;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}
+const DateButton = forwardRef<HTMLButtonElement, DateButtonProps>(({ value, onClick }, ref) => (
+  <button className="date-button" onClick={onClick} ref={ref}>
+    {value || 'D'} {/* Display selected date or default 'D' */}
+  </button>
+));
+DateButton.displayName = 'DateButton'; // Add display name for DevTools
+// --- End Custom Input Button Component ---
+
 const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   // --- State, Refs (REMOVE tooltipRef), Constants, Helpers ---
   const [stockData, setStockData] = useState<d3.HierarchyNode<TreeNodeData> | null>(null);
@@ -44,6 +57,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   const [activeIndex, setActiveIndex] = useState<string>('SP500');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null); // <-- Add state for selected date (null = live)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false); // <-- Add state for date picker
 
   // --- ADD: Formatted Date Memo --- 
   const formattedDate = useMemo<string | null>(() => {
@@ -70,18 +84,24 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   }
   
   const API_BASE_URL = "https://financialmodelingprep.com/api/v3";
-  // Use template literal with the loaded API key
+  const indexTypes = useMemo(() => ['SP500', 'DOW30', 'Nasdaq100', 'Russell2000'], []);
+  const indexDisplayNames = useMemo(() => ({ // Map short names to display names
+      SP500: 'S&P 500',
+      DOW30: 'DOW 30',
+      Nasdaq100: 'Nasdaq 100',
+      Russell2000: 'Russell 2000'
+  }), []);
   const INDEX_ENDPOINTS = {
       SP500: `${API_BASE_URL}/sp500_constituent?apikey=${API_KEY}`,
-      DOW: `${API_BASE_URL}/dowjones_constituent?apikey=${API_KEY}`,
-      NDX: `${API_BASE_URL}/nasdaq_constituent?apikey=${API_KEY}`,
-      RUT: `${API_BASE_URL}/russell_2000_constituent?apikey=${API_KEY}`,
+      DOW30: `${API_BASE_URL}/dowjones_constituent?apikey=${API_KEY}`,
+      Nasdaq100: `${API_BASE_URL}/nasdaq_constituent?apikey=${API_KEY}`,
+      Russell2000: `${API_BASE_URL}/russell_2000_constituent?apikey=${API_KEY}`,
   };
   const INDEX_DESCRIPTIONS = {
-      SP500: "Standard and Poor's 500 U.S. index stocks categorized by sectors and industries. Size represents market cap.",
-      DOW: "Dow Jones Industrial Average (30 large cap stocks) categorized by sectors. Size represents market cap.",
-      NDX: "Nasdaq 100 index stocks (largest non-financial companies) categorized by sectors. Size represents market cap.",
-      RUT: "Russell 2000 index stocks (small-cap US stocks) categorized by sectors. Size represents market cap."
+      SP500: "Standard and Poor's 500 U.S. index stocks categorized by sectors. Size represents market cap.",
+      DOW30: "Dow Jones Industrial Average (30 large cap stocks) categorized by sectors. Size represents market cap.",
+      Nasdaq100: "Nasdaq 100 index stocks (largest non-financial companies) categorized by sectors. Size represents market cap.",
+      Russell2000: "Russell 2000 index stocks (small-cap US stocks) categorized by sectors. Size represents market cap."
   };
   const MIN_RECT_HEIGHT_FOR_CHANGE = 25;
   // Define treemap padding constants for reuse
@@ -91,12 +111,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   const PADDING_LEFT = 2;
   const PADDING_INNER = 2;
 
-  // Define tab configurations using uppercase IDs
+  // Use indexTabs array from the provided code
   const indexTabs = [
       { id: 'SP500', name: 'S&P 500' },
-      { id: 'DOW', name: 'DOW 30' },
-      { id: 'NDX', name: 'Nasdaq 100' },
-      { id: 'RUT', name: 'Russell 2000' }
+      { id: 'DOW30', name: 'DOW 30' }, // Update IDs to match state/constants
+      { id: 'Nasdaq100', name: 'Nasdaq 100' },
+      { id: 'Russell2000', name: 'Russell 2000' }
   ];
 
   // --- Helper Functions (Define BEFORE useEffect that uses them) ---
@@ -414,15 +434,15 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             .attr("id", "tooltip-react")
             .style("position", "absolute")
             .style("opacity", 0)
-            .style("background-color", "rgba(31, 31, 31, 0.9)") // #1f1f1f with opacity
-            .style("border", "0.5px solid #00cc00")
+            .style("background-color", "rgba(31, 31, 31, 0.9)")
+            .style("border", "1px solid #00cc00") // Changed border to 1px
             .style("border-radius", "4px")
             .style("padding", "8px 12px")
             .style("color", "#ffffff")
             .style("font-size", "12px")
-            .style("pointer-events", "none") // Tooltip shouldn't block mouse events
+            .style("pointer-events", "none") 
             .style("white-space", "nowrap")
-            .style("z-index", "999"); // Ensure high z-index
+            .style("z-index", "999"); 
     }
 
     // --- NEW: Sector Popup Setup --- 
@@ -730,88 +750,32 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
              combinedData = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
              // --- END LIVE DATA LOGIC ---
         } else {
-            // --- HISTORICAL DATA LOGIC (Revised: Sequential Batching for EOD) --- 
-            console.log(`>>> Fetching HISTORICAL EOD for ${formattedDate}...`);
+            // --- HISTORICAL DATA LOGIC (Revised: Fetch from Backend Server) --- 
+            console.log(`>>> Fetching HISTORICAL data for ${formattedDate} from backend...`);
             
-            const BATCH_SIZE = 50; // Number of symbols per API call (Further Reduced size)
-            let allEodData: any[] = []; // Array to hold results from all batches
+            const backendUrl = `http://localhost:3001/api/historical-data?index=${encodeURIComponent(indexName)}&date=${encodeURIComponent(formattedDate)}`;
             
-            // Loop through symbols in batches
-            for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-                const symbolsChunk = symbols.slice(i, i + BATCH_SIZE);
-                console.log(`>>> Fetching EOD batch ${i / BATCH_SIZE + 1} for ${symbolsChunk.length} symbols...`);
-                
-                const EOD_URL = `${API_BASE_URL}/batch-request-end-of-day-prices?date=${formattedDate}&symbols=${symbolsChunk.join(',')}&apikey=${API_KEY}`;
-                
+            const response = await fetch(backendUrl);
+            
+            if (!response.ok) {
+                let errorMsg = `Failed to fetch historical data from backend: Status ${response.status}`;
                 try {
-                    const eodResponse = await fetch(EOD_URL);
-
-                    if (!eodResponse.ok) {
-                        let apiErrorMsg = '';
-                        try { apiErrorMsg = (await eodResponse.json())?.message || `Status ${eodResponse.status}`; } catch (_) { apiErrorMsg = `Status ${eodResponse.status}`; }
-                        // Throw error but potentially allow proceeding if some batches succeed?
-                        // For now, throw and stop.
-                        throw new Error(`Batch ${i / BATCH_SIZE + 1} failed: ${apiErrorMsg}`);
-                    }
-                    
-                    const eodChunkResponse = await eodResponse.json();
-
-                    // --- Correct Data Extraction --- 
-                    // Check structure based on console log: { output: [...] }
-                    // Or maybe library returns array like [{ historical: [...] }] ?
-                    let eodChunkData: any[] = []; 
-                    if (Array.isArray(eodChunkResponse?.output)) {
-                         eodChunkData = eodChunkResponse.output;
-                    } else if (Array.isArray(eodChunkResponse)) { 
-                        // Handle cases where it might return [{symbol: ..., historical: {...}}] directly
-                        // Or maybe [{ historical: [...] }] ? Check API docs again if needed.
-                         eodChunkData = eodChunkResponse; // Assume it's the array if top level is array
-                         // If structure is [{ historical: [...] }], need further extraction: 
-                         // eodChunkData = eodChunkResponse[0]?.historical || [];
-                    } else {
-                         console.error(`Invalid EOD Chunk Data received (Batch ${i / BATCH_SIZE + 1}):`, eodChunkResponse);
-                         throw new Error(`Invalid data format in EOD batch ${i / BATCH_SIZE + 1}`);
-                    }
-                     // --- END Data Extraction ---
-
-                    console.log(`>>> Received ${eodChunkData.length} EOD results for batch ${i / BATCH_SIZE + 1}.`);
-                    allEodData = allEodData.concat(eodChunkData);
-
-                } catch (batchError) {
-                    // Handle error for a single batch - maybe log and continue?
-                    // For now, rethrow to stop the process on first failure.
-                     console.error(`Error fetching EOD batch ${i / BATCH_SIZE + 1}:`, batchError);
-                     throw batchError; // Stop processing if any batch fails
-                }
-
-                // --- ADD Delay before next batch (if not the last one) ---
-                if (i + BATCH_SIZE < symbols.length) {
-                    console.log(`>>> Waiting 2 seconds before next EOD batch...`); // Increased delay to 2s
-                    await delay(2000); // Increased delay to 2 seconds
-                }
-                // --- END Delay ---
+                     // Try to get error message from server response
+                     const errorBody = await response.json(); 
+                     errorMsg = errorBody?.error || errorMsg; 
+                 } catch (_) {
+                     // Ignore if parsing fails, use original status message
+                 }
+                 throw new Error(errorMsg);
             }
-            // --- End Batch Loop ---
-
-            console.log(`>>> Total EOD results received: ${allEodData.length}. Combining...`);
-
-            // Combine EOD data with sector
-            const combinedHistDataWithNulls = allEodData.map((eod: any) => { // Map over combined results
-                if (!eod.symbol) return null;
-                const symbol = eod.symbol;
-                const sector = sectorMap[symbol];
-                const sizingValue = eod.volume ?? eod.close ?? 0;
-                if (!sector) return null; 
-                const stockQuoteItem: StockQuote = {
-                    symbol: symbol,
-                    name: undefined,
-                    marketCap: sizingValue,
-                    changesPercentage: 0,
-                    sector: sector,
-                };
-                return stockQuoteItem;
-            });
-            combinedData = combinedHistDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
+            
+            // Server now returns the combined data directly
+            combinedData = await response.json();
+            
+            if (!Array.isArray(combinedData)) {
+                 throw new Error('Invalid data format received from backend server.');
+            }
+            console.log(`>>> Received ${combinedData.length} historical stocks from backend.`);
             // --- END HISTORICAL DATA LOGIC ---
         }
 
@@ -850,8 +814,8 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       ref={containerRef}
       style={{
             width: '100%',
-            height: '100%', // Fill outer div
-          border: '0.5px solid #00cc00',
+            height: '100%',
+          border: '1px solid #00cc00', // Changed border to 1px
             borderRadius: '8px', backgroundColor: '#0a0a0a',
             position: 'relative', color: '#ffffff', fontFamily: 'Roboto, sans-serif',
             display: 'flex', flexDirection: 'column',
@@ -866,42 +830,47 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             borderBottom: '0.5px solid #00cc00',
             flexShrink: 0
           }}>
-          {/* Index Tabs */}
-          <div id="index-tabs">
-            {indexTabs.map((tab) => ( // Revert back to simpler map
+          {/* Index Tabs Container - Restore structure from provided code */}
+          <div id="index-tabs"> 
+            {indexTabs.map((tab) => ( // Use indexTabs array
                 <button 
                   key={tab.id} 
-                  onClick={() => setActiveIndex(tab.id)}
+                  onClick={() => setActiveIndex(tab.id)} // Use tab.id
                   disabled={isLoading} 
-                  className={`index-tab ${activeIndex === tab.id ? 'active' : ''}`} // Keep className logic
+                  // Revert class name logic to use 'active'
+                  className={`index-tab ${activeIndex === tab.id ? 'active' : ''}`} 
                   style={{ 
-                    marginRight: '2px', // Restore original inline styles
+                    // Re-add inline margin
+                    marginRight: '2px', 
                     cursor: isLoading ? 'default' : 'pointer' 
-                    // Remove other base styles (border, padding, bg, color) - apply via CSS if needed
-                    // Remove spread activeStyle
                    }}>
                     {tab.name}
               </button>
             ))}
           </div>
 
-          {/* MOVED Description Area - now inline with header */}
+          {/* Index Description */}
+           {/* Use div as in provided code */} 
           <div id="heatmap-description" style={{
-                  margin: '0 20px', // Add some horizontal margin for spacing
-                  color: '#dddddd',
-                  fontSize: '10pt', 
-                  textAlign: 'center', // Center text within its available space
-                  flexGrow: 1 // Allow it to take up available middle space
+                margin: '0 20px',          
+                textAlign: 'center',      
+                flexGrow: 1,              
+                fontSize: '10pt' 
+              }}>
+             <p style={{ 
+                  margin: 0, 
+                  color: '#ffffff'
                 }}>
-               <p style={{ margin: 0 }}>{INDEX_DESCRIPTIONS[activeIndex as keyof typeof INDEX_DESCRIPTIONS]}</p>
-          </div>
+                 {INDEX_DESCRIPTIONS[activeIndex as keyof typeof INDEX_DESCRIPTIONS]}
+             </p>
+            </div>
 
-          {/* Live Data Indicator */}
-          <div className="live-indicator" style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
-            <span className="live-dot" style={{ marginRight: '5px' }}></span>
-            <span className="live-text">Live Data</span>
-          </div>
-      </div>
+            {/* Live Data Indicator */}
+            <div className="live-indicator" style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
+              <span className="live-dot" style={{ marginRight: '5px' }}></span>
+              <span className="live-text">Live Data</span>
+            </div>
+        </div>
 
         {/* Status Messages */}
         {isLoading && ( <div style={{ /* Loading styles */ }}>Loading data for {activeIndex}...</div> )}
@@ -924,14 +893,27 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             <div id="date-search-placeholder">
                  <DatePicker
                     selected={selectedDate} 
-                    onChange={(date: Date | null) => setSelectedDate(date)}
-                    customInput={<button className="date-button">D</button>} 
+                    onChange={(date: Date | null) => {
+                        setSelectedDate(date);
+                        setIsDatePickerOpen(false); 
+                    }}
+                    // Use React.createElement with forwardRef for custom input
+                    customInput={React.createElement(forwardRef<HTMLButtonElement, { value?: string; onClick?: () => void }>(({ value, onClick }, ref) => (
+                        <button 
+                            className="date-button" 
+                            onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} // Directly toggle state on click
+                            ref={ref}
+                        >
+                            {value || 'D'} 
+                        </button>
+                    )))}
+                    open={isDatePickerOpen} 
+                    onClickOutside={() => setIsDatePickerOpen(false)} 
                     dateFormat="yyyy-MM-dd"
                     placeholderText="Live / Select Date" 
                     isClearable 
                     popperPlacement="right-start"
                     maxDate={new Date()}
-                    // portalId="root-portal"
                   />
             </div>
             {/* Legend Container */}
