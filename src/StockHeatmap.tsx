@@ -4,6 +4,97 @@ import * as d3 from 'd3'; // We'll likely need D3
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+// --- Define Constants OUTSIDE Component Scope ---
+
+// Mapping for ETF Categories (Based on Finviz)
+// TODO: Expand and refine this map
+const etfCategoryMap: { [symbol: string]: string[] } = {
+  // US Index
+  'SPY': ['US Index', 'Large Cap Blend'], 'QQQ': ['US Index', 'Large Cap Growth'], 'DIA': ['US Index', 'Large Cap Value'],
+  'IVV': ['US Index', 'Large Cap Blend'], 'VOO': ['US Index', 'Large Cap Blend'], 'RSP': ['US Index', 'Equal Weight'],
+  'VTI': ['US Index', 'Total Market'], 'IWB': ['US Index', 'Large Cap Blend'], 'SCHB': ['US Index', 'Total Market'],
+  // US Sector
+  'XLK': ['US Sector', 'Technology'], 'XLY': ['US Sector', 'Consumer Cyclical'], 'XLP': ['US Sector', 'Consumer Defensive'],
+  'XLE': ['US Sector', 'Energy'], 'XLF': ['US Sector', 'Financials'], 'XLV': ['US Sector', 'Healthcare'],
+  'XLI': ['US Sector', 'Industrials'], 'XLB': ['US Sector', 'Basic Materials'], 'XLU': ['US Sector', 'Utilities'],
+  'IYR': ['US Sector', 'Real Estate'], 'SOXX': ['US Sector', 'Semiconductors'], 'VGT': ['US Sector', 'Technology'],
+  'XRT': ['US Sector', 'Retail'], 'XBI': ['US Sector', 'Biotechnology'], 'XOP': ['US Sector', 'Oil & Gas E&P'],
+  'KRE': ['US Sector', 'Regional Banks'], 
+  // US Size/Style
+  'IWF': ['US Style', 'Large Cap Growth'], 'VUG': ['US Style', 'Large Cap Growth'], 'VTV': ['US Style', 'Large Cap Value'],
+  'IWD': ['US Style', 'Large Cap Value'], 'MDY': ['US Style', 'Mid Cap Blend'], 'VO': ['US Style', 'Mid Cap Blend'],
+  'IJH': ['US Style', 'Mid Cap Blend'], 'IJR': ['US Style', 'Small Cap Blend'], 'VB': ['US Style', 'Small Cap Blend'],
+  'IWM': ['US Style', 'Small Cap Blend'],
+  // Volatility / Leverage / Inverse - Reverted to top-level
+  'VXX': ['Volatility'], 
+  'UVXY': ['Leverage', 'Volatility'], 
+  'SQQQ': ['Inverse', 'Nasdaq 100'], 
+  'SPXS': ['Inverse', 'S&P 500'],
+  'TQQQ': ['Leverage', 'Nasdaq 100'], 
+  'SPXL': ['Leverage', 'S&P 500'], 
+  'SOXS': ['Inverse', 'Semiconductors'],
+  'TNA': ['Leverage', 'Small Cap'], 
+  'TZA': ['Inverse', 'Small Cap'],
+  // International
+  'EFA': ['International', 'Developed Markets'], 'VEA': ['International', 'Developed Markets'], 'IEFA': ['International', 'Developed Markets'],
+  'EEM': ['International', 'Emerging Markets'], 'VWO': ['International', 'Emerging Markets'], 'IEMG': ['International', 'Emerging Markets'],
+  'EWJ': ['International', 'Japan'], 'FXI': ['International', 'China'], 'EZU': ['International', 'Europe'], 'VGK': ['International', 'Europe'],
+  // Commodity / Currency
+  'GLD': ['Commodity', 'Gold'], 'IAU': ['Commodity', 'Gold'], 'SLV': ['Commodity', 'Silver'],
+  'USO': ['Commodity', 'Oil'], 'UNG': ['Commodity', 'Natural Gas'], 'UUP': ['Currency', 'USD Bullish'], 'FXE': ['Currency', 'Euro Bullish'],
+  // Fixed Income
+  'AGG': ['Fixed Income', 'Broad Market'], 'BND': ['Fixed Income', 'Broad Market'], 'TLT': ['Fixed Income', 'Long Treasury'],
+  'SHV': ['Fixed Income', 'Short Treasury'], 'IEF': ['Fixed Income', 'Intermediate Treasury'], 'HYG': ['Fixed Income', 'High Yield Corp'],
+  'LQD': ['Fixed Income', 'Investment Grade Corp'], 'VCIT': ['Fixed Income', 'Intermediate Corp'], 'VCSH': ['Fixed Income', 'Short Corp'],
+  'MUB': ['Fixed Income', 'Municipal']
+};
+
+// --- World Map Data ---
+const worldSymbols = [
+  // North America
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', // US
+  'RY', 'TD', 'SHOP', 'ENB', 'CNQ', // Canada
+  'AMX', // Mexico
+  // Europe
+  'ASML', 'LVMUY', 'NVO', 'SAP', 'SIEGY', 'HSBC', 'SHEL', // Various EU
+  'AZN', // UK
+  'NSRGY', // Nestle (Switzerland) - US ADR
+  // Asia-Pacific
+  'TSM', 'BABA', 
+  'TM', // Toyota - US ADR
+  'SONY', 
+  'SSNLF', // Samsung Electronics (OTC)
+  'BHP', // Australia
+  'RELIANCE.NS', // India (No common US ADR)
+  // South America
+  'PBR', 'VALE', // Brazil
+  // Add more...
+];
+
+const worldCountryMap: { [symbol: string]: string[] } = {
+  // North America
+  'AAPL': ['North America', 'USA', 'USD'], 'MSFT': ['North America', 'USA', 'USD'], 'GOOGL': ['North America', 'USA', 'USD'], 'AMZN': ['North America', 'USA', 'USD'], 'NVDA': ['North America', 'USA', 'USD'],
+  'RY': ['North America', 'Canada', 'CAD'], 'TD': ['North America', 'Canada', 'CAD'], 'SHOP': ['North America', 'Canada', 'CAD'], 'ENB': ['North America', 'Canada', 'CAD'], 'CNQ': ['North America', 'Canada', 'CAD'],
+  'AMX': ['North America', 'Mexico', 'MXN'],
+  // Europe
+  'ASML': ['Europe', 'Netherlands', 'EUR'], 'LVMUY': ['Europe', 'France', 'EUR'], 'NVO': ['Europe', 'Denmark', 'DKK'], 'SAP': ['Europe', 'Germany', 'EUR'], 'SIEGY': ['Europe', 'Germany', 'EUR'], 'HSBC': ['Europe', 'UK', 'GBP'], 'SHEL': ['Europe', 'UK', 'GBP'],
+  'AZN': ['Europe', 'UK', 'GBP'],
+  'NSRGY': ['Europe', 'Switzerland', 'CHF'], // Update key
+  // Asia-Pacific
+  'TSM': ['Asia-Pacific', 'Taiwan', 'TWD'], 'BABA': ['Asia-Pacific', 'China', 'CNY'], 
+  'TM': ['Asia-Pacific', 'Japan', 'JPY'], // Update key
+  'SONY': ['Asia-Pacific', 'Japan', 'JPY'], 
+  'SSNLF': ['Asia-Pacific', 'South Korea', 'KRW'],
+  'BHP': ['Asia-Pacific', 'Australia', 'AUD'],
+  'RELIANCE.NS': ['Asia-Pacific', 'India', 'INR'], // Keep key
+  // South America
+  'PBR': ['South America', 'Brazil', 'BRL'], 'VALE': ['South America', 'Brazil', 'BRL'],
+};
+
+// --- End World Map Data ---
+
+// --- End Constants OUTSIDE Component Scope ---
+
 // Define TypeScript interfaces for our data
 interface StockQuote {
   symbol: string;
@@ -11,18 +102,16 @@ interface StockQuote {
   marketCap: number;
   changesPercentage: number;
   sector: string;
-  industry?: string; // Revert back to optional
+  currency?: string;
   // Add other relevant properties if needed
 }
 
 // Type for the data structure *after* transformData
-// Sector nodes have name and children; Leaf nodes have name and StockQuote data
 interface TreeNodeData extends Partial<StockQuote> {
   name: string;
   children?: TreeNodeData[];
-  // Include StockQuote properties directly for leaf nodes
   symbol?: string;
-  value?: number;
+  value?: number; 
 }
 
 // Define props if the component needs any input from its parent
@@ -93,31 +182,34 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
   }), []);
   const INDEX_ENDPOINTS = {
       SP500: `${API_BASE_URL}/sp500_constituent?apikey=${API_KEY}`,
-      DOW30: `${API_BASE_URL}/dowjones_constituent?apikey=${API_KEY}`,
-      Nasdaq100: `${API_BASE_URL}/nasdaq_constituent?apikey=${API_KEY}`,
-      Russell2000: `${API_BASE_URL}/russell_2000_constituent?apikey=${API_KEY}`,
+      DOW: `${API_BASE_URL}/dowjones_constituent?apikey=${API_KEY}`,
+      NDX: `${API_BASE_URL}/nasdaq_constituent?apikey=${API_KEY}`,
   };
   const INDEX_DESCRIPTIONS = {
-      SP500: "Standard and Poor's 500 U.S. index stocks categorized by sectors. Size represents market cap.",
-      DOW30: "Dow Jones Industrial Average (30 large cap stocks) categorized by sectors. Size represents market cap.",
-      Nasdaq100: "Nasdaq 100 index stocks (largest non-financial companies) categorized by sectors. Size represents market cap.",
-      Russell2000: "Russell 2000 index stocks (small-cap US stocks) categorized by sectors. Size represents market cap."
+      SP500: "Standard and Poor's 500 U.S. index stocks categorized by sectors and industries. Size represents market cap.",
+      DOW: "Dow Jones Industrial Average (30 large cap stocks) categorized by sectors. Size represents market cap.",
+      NDX: "Nasdaq 100 index stocks (largest non-financial companies) categorized by sectors. Size represents market cap.",
+      ETF: "Overview of major Exchange Traded Funds (ETFs) categorized by asset class and strategy. Size represents market cap.",
+      WORLD: "Overview of major global stocks categorized by region and country. Size represents market cap."
   };
   const MIN_RECT_HEIGHT_FOR_CHANGE = 25;
   // Define treemap padding constants for reuse
-  const PADDING_TOP = 15;
+  const PADDING_TOP = 25;
   const PADDING_RIGHT = 2;
   const PADDING_BOTTOM = 2;
   const PADDING_LEFT = 2;
   const PADDING_INNER = 2;
 
-  // Use indexTabs array from the provided code
+  // Define tab configurations using uppercase IDs
   const indexTabs = [
       { id: 'SP500', name: 'S&P 500' },
-      { id: 'DOW30', name: 'DOW 30' }, // Update IDs to match state/constants
-      { id: 'Nasdaq100', name: 'Nasdaq 100' },
-      { id: 'Russell2000', name: 'Russell 2000' }
+      { id: 'DOW', name: 'DOW 30' },
+      { id: 'NDX', name: 'Nasdaq 100' },
+      { id: 'ETF', name: 'ETF Map' },
+      { id: 'WORLD', name: 'World Map' }
   ];
+
+  const MIN_RECT_WIDTH_FOR_TEXT = 25;
 
   // --- Helper Functions (Define BEFORE useEffect that uses them) ---
 
@@ -147,55 +239,130 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
   }, []);
 
-  // Helper for styling percentage text in tooltips/popups
-  const getPercentageStyle = (percentage: number): { color: string; textShadow: string; fontWeight: string } => {
+  // Helper for styling percentage text in tooltips/popups - WRAP IN useCallback
+  const getPercentageStyle = useCallback((percentage: number): { color: string; textShadow: string; fontWeight: string } => {
     if (percentage > 0) {
         return { 
-            color: '#39FF14', // Neon Lime Green
+            color: '#39FF14', 
             textShadow: 'none',
             fontWeight: 'bold' 
         };
     } else if (percentage < 0) {
         return {
-            color: '#FF0000', // Pure Bright Red
+            color: '#FF0000', 
             textShadow: 'none', 
             fontWeight: 'bold'
         };
     } else {
         return {
-            color: '#cccccc', // Light grey
+            color: '#cccccc', 
             textShadow: 'none', 
             fontWeight: 'bold'
         };
     }
-  };
+  }, []); // Empty dependency array as it has no external dependencies
 
-  // transformData function - Revert to Sector -> Stock grouping
-  const transformData = (flatData: StockQuote[]): d3.HierarchyNode<TreeNodeData> | null => {
+  // transformData function - Apply sizing conditionally
+  const transformData = (flatData: StockQuote[], currentActiveIndex: string): d3.HierarchyNode<TreeNodeData> | null => {
     if (!flatData || flatData.length === 0) {
         console.error("transformData received empty or invalid data.");
         return null;
     }
 
-    const groupedData = d3.group(flatData, d => d.sector || "Unknown Sector");
+    // Create a nested structure using d3.group and splitting sector paths
+    const groupedData = d3.group(flatData, d => d.sector); // Initial group by full path
+
+    const buildHierarchy = (map: Map<string, any>, pathPrefix: string[] = []): TreeNodeData[] => {
+      return Array.from(map, ([key, value]) => {
+          const currentPath = [...pathPrefix, key];
+          if (value instanceof Map) { // If it's a nested map, recurse
+            return {
+              name: key,
+              children: buildHierarchy(value, currentPath)
+            };
+          } else { // If it's an array of stocks (leaf node group)
+             // Check if the group key itself needs splitting (e.g., "US Sector > Technology")
+            const keyParts = key.split(' > ');
+            const nodeName = keyParts[keyParts.length - 1]; // Use the last part as node name
+            
+            // If the values are stocks, create child nodes for each stock
+            if (Array.isArray(value) && value.length > 0 && value[0].symbol) {
+                return {
+                    name: nodeName,
+                    children: value.map(stock => ({
+                        name: stock.symbol, // Leaf node name is the symbol
+                        ...stock // Spread the rest of the stock data
+                    }))
+                };
+            } else {
+                 // Should not happen with current structure, but handle gracefully
+                 console.warn("Unexpected data structure in buildHierarchy for key:", key);
+                 return { name: nodeName, children: [] };
+            }
+          }
+      });
+    };
     
-    const rootHierarchy: TreeNodeData = {
+    // Process the initial grouped map to handle path splitting
+    const processedMap = new Map<string, any>();
+    for (const [fullPath, stocks] of groupedData) {
+        const parts = fullPath.split(' > ');
+        let currentLevel = processedMap;
+        parts.forEach((part, index) => {
+            if (index === parts.length - 1) { // Last part, assign stocks
+                 if (!currentLevel.has(part)) {
+                     currentLevel.set(part, []);
+                 }
+                 // Ensure we push stocks to the correct array
+                 const stockArray = currentLevel.get(part);
+                 if (Array.isArray(stockArray)) {
+                     stockArray.push(...stocks);
+                 } else {
+                     // This case handles potential pre-existing Map structures if paths overlap
+                     // For simplicity, we assume distinct leaf paths for now
+                     console.warn(`Overwriting structure at ${parts.slice(0, index + 1).join(' > ')}?`);
+                     currentLevel.set(part, stocks);
+                 }
+
+            } else { // Intermediate part, ensure map exists
+                if (!currentLevel.has(part)) {
+                    currentLevel.set(part, new Map<string, any>());
+                }
+                let nextLevel = currentLevel.get(part);
+                // Ensure it's actually a Map before proceeding
+                 if (!(nextLevel instanceof Map)) {
+                     console.warn(`Structure conflict at ${parts.slice(0, index + 1).join(' > ')}. Resetting.`);
+                     nextLevel = new Map<string, any>();
+                     currentLevel.set(part, nextLevel);
+                 }
+                currentLevel = nextLevel;
+            }
+        });
+    }
+
+    // Build the final hierarchical structure for D3
+    const rootHierarchy = {
         name: "root",
-        children: Array.from(groupedData, ([sectorName, stocks]) => ({
-            name: sectorName,
-            // Leaf nodes are the individual stocks
-            children: stocks.map(stock => ({ 
-                name: stock.symbol, // <-- Leaf node name MUST be symbol for hierarchy
-                ...stock // <-- Spread the rest of the StockQuote data (including company name)
-            }))
-        }))
+        children: buildHierarchy(processedMap)
+    };
+
+    // Apply sizing based on the active index
+    const sizeMetricAccessor = (d: TreeNodeData) => {
+      const cap = d.marketCap ?? 0;
+      if (currentActiveIndex === 'WORLD') {
+        // WORLD MAP: Use square root scaling, ensure positive cap, fallback to sqrt(1e6)
+        return cap > 0 ? Math.sqrt(cap) : Math.sqrt(1e6); 
+      } else {
+        // OTHER MAPS: Use linear market cap, ensure positive cap, fallback to 1e6
+        return cap > 0 ? cap : 1e6; 
+      }
     };
 
     const hierarchy = d3.hierarchy<TreeNodeData>(rootHierarchy)
-        .sum((d) => d.marketCap ?? 0) 
+        .sum(sizeMetricAccessor) // Use conditional size metric
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-    
-    console.log(">>> transformData completed (Sector->Stock). Root node:", hierarchy); 
+
+    console.log(`>>> transformData completed (Using ${currentActiveIndex === 'WORLD' ? 'sqrt(MarketCap)' : 'MarketCap'}). Root node:`, hierarchy);
     return hierarchy;
   };
 
@@ -228,7 +395,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
     };
   }, []);
 
-  // Fetch data when activeIndex changes - Revert to only use sector
+  // Fetch data when activeIndex changes
   useEffect(() => {
     if (!API_KEY) {
         setError("API Key is missing.");
@@ -240,77 +407,268 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
       setError(null);
       setStockData(null);
 
-      const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS];
-      const indexName = activeIndex;
+      // --- HANDLE ETF CASE --- 
+      if (activeIndex === 'ETF') {
+        console.log(">>> Fetching ETF data...");
+        // Placeholder list based roughly on Finviz categories
+        // TODO: Refine this list and categorization method
+        const etfSymbols = [
+            // US Index
+            'SPY', 'QQQ', 'DIA', 'IVV', 'VOO', 'RSP', 'VTI', 'IWB', 'SCHB',
+            // US Sector
+            'XLK', 'XLY', 'XLP', 'XLE', 'XLF', 'XLV', 'XLI', 'XLB', 'XLU', 'IYR', 
+            'SOXX', 'VGT', 'XRT', 'XBI', 'XOP', 'KRE', 
+            // US Size/Style
+            'IWF', 'VUG', 'VTV', 'IWD', 'MDY', 'VO', 'IJH', 'IJR', 'VB', 'IWM',
+            // Volatility / Leverage / Inverse
+            'VXX', 'UVXY', 'SQQQ', 'SPXS', 'TQQQ', 'SPXL', 'SOXS', 'TNA', 'TZA',
+            // International
+            'EFA', 'VEA', 'IEFA', 'EEM', 'VWO', 'IEMG', 'EWJ', 'FXI', 'EZU', 'VGK',
+            // Commodity / Currency
+            'GLD', 'IAU', 'SLV', 'USO', 'UNG', 'UUP', 'FXE',
+            // Fixed Income
+            'AGG', 'BND', 'TLT', 'SHV', 'IEF', 'HYG', 'LQD', 'VCIT', 'VCSH', 'MUB'
+            // Add more as needed...
+        ];
 
-      if (!CONSTITUENTS_URL) {
-          setError(`Endpoint not defined for index type "${activeIndex}".`);
+        const QUOTE_URL = `${API_BASE_URL}/quote/${etfSymbols.join(',')}?apikey=${API_KEY}`;
+        
+        try {
+            const quoteResponse = await fetch(QUOTE_URL);
+            if (!quoteResponse.ok) throw new Error(`Failed to fetch ETF quotes: ${quoteResponse.status}`);
+            const quoteData = await quoteResponse.json();
+            if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ETF quotes.`);
+            console.log(`>>> Received ${quoteData.length} ETF quotes. Combining...`);
+
+            // Use the etfCategoryMap 
+            const etfDataWithCategories: StockQuote[] = quoteData.map((quote: any) => {
+                // Check marketCap for ETFs too now
+                if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
+                
+                const categories = etfCategoryMap[quote.symbol];
+                const sectorPath = categories ? categories.join(' > ') : 'Other'; 
+
+                return {
+                    symbol: quote.symbol,
+                    marketCap: quote.marketCap > 0 ? quote.marketCap : 1e6, // Use marketCap, ensure > 0
+                    changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
+                    sector: sectorPath
+                };
+            }).filter((etf): etf is StockQuote => etf !== null); // Revert type guard
+
+            if (etfDataWithCategories.length === 0) throw new Error('No valid ETF data remaining.');
+            console.log(`>>> Using ${etfDataWithCategories.length} ETFs. Transforming...`);
+
+            const hierarchicalData = transformData(etfDataWithCategories, activeIndex);
+            if (!hierarchicalData) throw new Error('Failed to transform ETF data.');
+
+            console.log(`>>> ETF Data fetch successful.`);
+            setStockData(hierarchicalData);
+            setError(null);
+
+        } catch (err: any) {
+            console.error(`>>> FetchData Error (ETF):`, err);
+            setError(err.message || 'An unknown error occurred fetching ETF data.');
+            setStockData(null);
+        } finally {
+            setIsLoading(false);
+        }
+        return; // Exit useEffect after handling ETF case
+      }
+      // --- END ETF CASE ---
+
+      // --- HANDLE WORLD MAP CASE --- 
+      else if (activeIndex === 'WORLD') {
+        console.log(">>> Fetching World Map data...");
+        
+        // --- Fetch FX Rates --- 
+        let fxRates: { [currency: string]: number } = { 'USD': 1.0 }; // Base case
+        const currenciesNeeded = new Set<string>();
+        worldSymbols.forEach(symbol => {
+            const currency = worldCountryMap[symbol]?.[2];
+            if (currency && currency !== 'USD') {
+                currenciesNeeded.add(currency);
+            }
+        });
+
+        if (currenciesNeeded.size > 0) {
+            const fxPairs = Array.from(currenciesNeeded).map(curr => `${curr}USD`);
+            const FX_URL = `${API_BASE_URL}/fx/${fxPairs.join(',')}?apikey=${API_KEY}`;
+            console.log(`>>> Fetching FX rates for: ${fxPairs.join(', ')}`);
+            try {
+                 const fxResponse = await fetch(FX_URL);
+                 if (!fxResponse.ok) throw new Error(`Failed to fetch FX rates: ${fxResponse.status}`);
+                 const fxData = await fxResponse.json();
+                 if (!Array.isArray(fxData)) throw new Error ('Invalid FX data format');
+                 
+                 fxData.forEach((pair: any) => {
+                     if (pair.ticker && typeof pair.bid === 'number' && pair.bid > 0) {
+                         const currency = pair.ticker.substring(0, 3); 
+                         // CORRECT: Store the RECIPROCAL to get LocalCurrency/USD
+                         fxRates[currency] = 1 / pair.bid; 
+                     }
+                 });
+                 console.log(">>> FX Rates (Local Currency per USD - Calculated):", fxRates);
+            } catch (fxErr: any) {
+                 console.error(">>> Failed to fetch or process FX rates:", fxErr);
+                 // Proceed without conversion, results will be skewed
+                 setError('Warning: Failed to get FX rates. Market caps not converted.'); 
+            }
+        }
+        // --- End Fetch FX Rates ---
+
+        const QUOTE_URL = `${API_BASE_URL}/quote/${worldSymbols.join(',')}?apikey=${API_KEY}`;
+        
+        try {
+            const quoteResponse = await fetch(QUOTE_URL);
+            if (!quoteResponse.ok) throw new Error(`Failed to fetch World quotes: ${quoteResponse.status}`);
+            const quoteData = await quoteResponse.json();
+            if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for World quotes.`);
+            console.log(`>>> Received ${quoteData.length} World quotes. Raw Data:`, quoteData); // LOG RAW QUOTES
+
+            // Log BABA quote data for debugging
+            const babaQuote = quoteData.find((q: any) => q.symbol === 'BABA');
+            console.log('>>> BABA Quote Data:', babaQuote);
+            console.log('>>> CNY FX Rate Used:', fxRates['CNY']);
+
+            // Use worldCountryMap and FX rates
+            const worldDataMapped: (StockQuote | null)[] = quoteData.map((quote: any): StockQuote | null => { 
+                if (!quote.symbol || typeof quote.marketCap !== 'number' || quote.marketCap <= 0) return null;
+                
+                const regionCountryInfo = worldCountryMap[quote.symbol];
+                if (!regionCountryInfo) return null; 
+
+                const region = regionCountryInfo[0];
+                const country = regionCountryInfo[1];
+                const currency = regionCountryInfo[2] || 'USD'; 
+                const sectorPath = `${region} > ${country}`;
+                
+                const originalMarketCap = quote.marketCap;
+                let marketCapInUSD = originalMarketCap;
+                const rate = fxRates[currency]; // Get rate for logging
+
+                // ENSURE conversion uses division
+                if (currency !== 'USD' && rate) {
+                    marketCapInUSD = originalMarketCap / rate;
+                }
+                if (!marketCapInUSD || marketCapInUSD <= 0) {
+                     marketCapInUSD = 1e6; // Use a fallback SMALLER than most real caps
+                }
+
+                // LOG CONVERSION DETAILS
+                if (currency !== 'USD') {
+                    console.log(`Converting ${quote.symbol} (${currency}): Orig Cap=${originalMarketCap.toExponential(2)}, Rate=${rate?.toFixed(4)}, USD Cap=${marketCapInUSD.toExponential(2)}`);
+                }
+
+                const stockQuote: StockQuote = {
+                    symbol: quote.symbol,
+                    marketCap: marketCapInUSD, 
+                    changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
+                    sector: sectorPath, 
+                    currency: currency 
+                };
+                return stockQuote;
+            });
+            
+            // Filter out nulls - Type predicate matches StockQuote
+            const worldDataWithCountries: StockQuote[] = worldDataMapped.filter((stock): stock is StockQuote => stock !== null); 
+            console.log(`>>> Mapped & Filtered World Data (${worldDataWithCountries.length} stocks):`, worldDataWithCountries); // LOG FILTERED DATA
+
+            if (worldDataWithCountries.length === 0) throw new Error('No valid World data remaining.');
+            console.log(`>>> Using ${worldDataWithCountries.length} World stocks. Transforming...`);
+
+            const hierarchicalData = transformData(worldDataWithCountries, activeIndex);
+            if (!hierarchicalData) throw new Error('Failed to transform World data.');
+
+            console.log(`>>> World Map Data fetch successful.`);
+            setStockData(hierarchicalData);
+            setError(null);
+
+        } catch (err: any) {
+            console.error(`>>> FetchData Error (World):`, err);
+            setError(err.message || 'An unknown error occurred fetching World data.');
+            setStockData(null);
+        } finally {
+            setIsLoading(false);
+        }
+        return; // Exit useEffect after handling WORLD case
+      }
+       // --- END WORLD MAP CASE ---
+
+      // --- Original Index Constituent fetching logic (SP500, DOW, NDX) --- 
+      else {
+        const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS]; 
+        const indexName = activeIndex;
+
+        if (!CONSTITUENTS_URL) {
+            setError(`Endpoint not defined for index type "${activeIndex}".`);
           setIsLoading(false);
           return;
       }
 
-      console.log(`>>> Fetching ${indexName} constituents...`);
-      let symbols: string[] = [];
-      // Revert to just storing sector
-      let sectorMap: { [key: string]: string } = {}; 
+        console.log(`>>> Fetching ${indexName} constituents...`);
+        let symbols: string[] = [];
+        // Revert to just storing sector
+        let sectorMap: { [key: string]: string } = {}; 
 
-      try {
-        const constituentsResponse = await fetch(CONSTITUENTS_URL);
-        if (!constituentsResponse.ok) throw new Error(`Failed to fetch ${indexName} list: ${constituentsResponse.status}`);
-        const constituentsData = await constituentsResponse.json();
-        if (!Array.isArray(constituentsData)) throw new Error(`Invalid data format for ${indexName} constituents.`);
-        
-        // Process constituents to get symbols and sector
-        constituentsData.forEach((stock: any) => {
-            if (stock.symbol) { 
-                symbols.push(stock.symbol); 
-                sectorMap[stock.symbol] = stock.sector || "Other";
-            }
-        });
-        if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
-        console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching quotes...`);
+        try {
+          const constituentsResponse = await fetch(CONSTITUENTS_URL);
+          if (!constituentsResponse.ok) throw new Error(`Failed to fetch ${indexName} list: ${constituentsResponse.status}`);
+          const constituentsData = await constituentsResponse.json();
+          if (!Array.isArray(constituentsData)) throw new Error(`Invalid data format for ${indexName} constituents.`);
+          
+          // Process constituents to get symbols and sector
+          constituentsData.forEach((stock: any) => {
+              if (stock.symbol) { 
+                  symbols.push(stock.symbol); 
+                  sectorMap[stock.symbol] = stock.sector || "Other";
+              }
+          });
+          if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
+          console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching quotes...`);
 
-        const QUOTE_URL = `${API_BASE_URL}/quote/${symbols.join(',')}?apikey=${API_KEY}`;
-        const quoteResponse = await fetch(QUOTE_URL);
-        if (!quoteResponse.ok) throw new Error(`Failed to fetch ${indexName} quotes: ${quoteResponse.status}`);
-        const quoteData = await quoteResponse.json();
-        if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} quotes.`);
-        console.log(`>>> Received ${quoteData.length} ${indexName} quotes. Combining...`);
+          const QUOTE_URL = `${API_BASE_URL}/quote/${symbols.join(',')}?apikey=${API_KEY}`;
+          const quoteResponse = await fetch(QUOTE_URL);
+          if (!quoteResponse.ok) throw new Error(`Failed to fetch ${indexName} quotes: ${quoteResponse.status}`);
+          const quoteData = await quoteResponse.json();
+          if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} quotes.`);
+          console.log(`>>> Received ${quoteData.length} ${indexName} quotes. Combining...`);
 
-        // Combine quote data with sector info
-        const combinedDataWithNulls = quoteData.map((quote: any) => {
-            if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
-            const sector = sectorMap[quote.symbol];
-            if (!sector) return null; 
-            // Construct object matching StockQuote more closely
-            const stockQuoteItem: StockQuote = {
-                symbol: quote.symbol as string, 
-                name: quote.name as string | undefined,
-                marketCap: quote.marketCap as number,
-                changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
-                sector: sector, // Use sector from map
-            };
-            return stockQuoteItem;
-        });
-        
-        // Filter out nulls with correct type predicate
-        let combinedData: StockQuote[] = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
-        
-        combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG'); // Keep GOOG filter
-        if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}.`);
-        console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
+          // Combine quote data with sector info
+          const combinedDataWithNulls = quoteData.map((quote: any) => {
+              if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
+              const sector = sectorMap[quote.symbol];
+              if (!sector) return null; 
+              // Construct object matching StockQuote more closely
+              const stockQuoteItem: StockQuote = {
+                  symbol: quote.symbol as string, 
+                  name: quote.name as string | undefined,
+                  marketCap: quote.marketCap as number,
+                  changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
+                  sector: sector, // Use sector from map
+              };
+              return stockQuoteItem;
+          });
+          
+          // Filter out nulls with correct type predicate
+          let combinedData: StockQuote[] = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
+          
+          combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG'); // Keep GOOG filter
+          if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}.`);
+          console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
 
-        const hierarchicalData = transformData(combinedData);
-        if (!hierarchicalData) throw new Error(`Failed to transform ${indexName} data.`);
-        console.log(`>>> Data fetch successful for ${indexName}.`);
-        setStockData(hierarchicalData); setError(null);
+          const hierarchicalData = transformData(combinedData, activeIndex);
+          if (!hierarchicalData) throw new Error(`Failed to transform ${indexName} data.`);
+          console.log(`>>> Data fetch successful for ${indexName}.`);
+          setStockData(hierarchicalData); setError(null);
       } catch (err: any) {
-          console.error(`>>> FetchData Error (${indexName}):`, err);
-          setError(err.message || `An unknown error occurred (${indexName}).`); setStockData(null);
-      } finally { setIsLoading(false); }
+            console.error(`>>> FetchData Error (${indexName}):`, err);
+            setError(err.message || `An unknown error occurred (${indexName}).`); setStockData(null);
+        } finally { setIsLoading(false); }
+      }
     };
     fetchData();
-  }, [activeIndex, API_KEY]); // Removed dependencies for brevity, ensure they are correct
+  }, [activeIndex, API_KEY]); // Keep dependencies minimal
 
   // --- Handler Functions for Sector Hover (Defined BEFORE useEffect) --- 
   const sectorMouseoverHandler = useCallback((event: MouseEvent, d: d3.HierarchyRectangularNode<TreeNodeData>) => {
@@ -320,41 +678,36 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
           hidePopupTimerRef.current = null;
       }
 
-      if (!svgRef.current) {
-          return;
-      }
+      if (!svgRef.current) return;
+      
       const svg = d3.select(svgRef.current);
       const sectorPopup = d3.select<HTMLDivElement, unknown>("#sector-popup");
-      const highlightColor = "#541d97"; // <-- Change color to specified hex code
+      const highlightColor = "#541d97"; 
       const frameClass = "sector-highlight-frame";
-      const cornerRadius = 8; // Desired outer corner radius
 
       // Remove any existing frames first
       svg.selectAll(`.${frameClass}`).remove();
       
-      // --- Add Highlight Frame using SVG Path --- 
+      // --- Add Highlight Frame using SVG Path (Rounded Donut Shape - REVERTING AGAIN) --- 
       const x0 = d.x0 ?? 0;
       const y0 = d.y0 ?? 0;
       const x1 = d.x1 ?? 0;
       const y1 = d.y1 ?? 0;
+      const cornerRadius = 4; 
       
-      // Inner bounds based on padding
+      // Inner bounds based on padding constants
       const ix0 = x0 + PADDING_LEFT;
-      const iy0 = y0 + PADDING_TOP;
+      const iy0 = y0 + PADDING_TOP; 
       const ix1 = x1 - PADDING_RIGHT;
       const iy1 = y1 - PADDING_BOTTOM;
-      
-      // Ensure radius isn't larger than half the smaller dimension of the *padding area*
-      // This prevents weird arc overlaps in very thin padding areas.
-      const effectiveRadius = Math.min(
-          cornerRadius, 
-          (x1 - x0) / 2, 
-          (y1 - y0) / 2, 
-          (ix1 - ix0) / 2, // Check inner width too
-          (iy1 - iy0) / 2  // Check inner height too
-      ); 
 
-      // Construct the path string 'd'
+      // Calculate adjusted inner top coordinate
+      const adjusted_iy0 = iy0 - 10; // Raise the inner cutout significantly (was -3)
+
+      // Ensure radius isn't too large for the OUTER box
+      const effectiveRadius = Math.max(0, Math.min(cornerRadius, (x1 - x0) / 2, (y1 - y0) / 2)); 
+      
+      // Construct the path string 'd' (Outer rounded, Inner sharp)
       const pathData = `
         M ${x0 + effectiveRadius},${y0} 
         L ${x1 - effectiveRadius},${y0} 
@@ -366,20 +719,17 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         L ${x0},${y0 + effectiveRadius} 
         A ${effectiveRadius},${effectiveRadius} 0 0 1 ${x0 + effectiveRadius},${y0} 
         Z 
-        M ${ix0},${iy0} 
-        L ${ix0},${iy1} 
-        L ${ix1},${iy1} 
-        L ${ix1},${iy0} 
-        Z
-      `;
-      
+        M ${ix0},${adjusted_iy0} L ${ix1},${adjusted_iy0} L ${ix1},${iy1} L ${ix0},${iy1} Z
+      `; // Use adjusted_iy0 for the inner path's top
+
       // Insert the path element BEFORE the first sector label
-      svg.insert("path", ".sector-label") // <-- Use insert() instead of append()
+      svg.insert("path", ".sector-label") 
          .attr("class", frameClass)
          .attr("d", pathData)
          .attr("fill", highlightColor)
-         .attr("fill-rule", "evenodd") // Important for donut shape
+         .attr("fill-rule", "evenodd") // Create the donut hole
          .style("pointer-events", "none");
+      // --- End Highlight Frame ---
 
       // Prepare Popup Content
       const stocks = d.leaves() as LeafNode[]; 
@@ -405,7 +755,17 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                      .style("left", `${event.pageX + 20}px`)
                      .style("top", `${event.pageY - 15}px`);
       }
-  }, [formatPercentage, getPercentageStyle, selectedDate]); // Dependencies: formatting and styling functions
+  }, [
+      formatPercentage, 
+      getPercentageStyle, 
+      selectedDate, 
+      activeIndex, 
+      // Add padding constants as dependencies
+      PADDING_LEFT, 
+      PADDING_TOP, 
+      PADDING_RIGHT, 
+      PADDING_BOTTOM 
+  ]);
 
   const sectorMouseoutHandler = useCallback(() => {
       // Don't hide immediately, start a timer
@@ -504,13 +864,16 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
     const svg = d3.select(svgElement);
     svg.selectAll("*").remove();
 
+    // Determine padding based on active index
+    const currentPaddingTop = activeIndex === 'WORLD' ? 25 : 15; // Use 25 for World, 15 otherwise
+
     const treemapLayout = d3.treemap<TreeNodeData>()
         .size([svgWidth, svgHeight])
-        .paddingTop(PADDING_TOP)     // Use constant
-        .paddingRight(PADDING_RIGHT)   // Use constant
-        .paddingBottom(PADDING_BOTTOM) // Use constant
+        .paddingTop(currentPaddingTop) // Use dynamic padding
+        .paddingRight(PADDING_RIGHT)   
+        .paddingBottom(PADDING_BOTTOM) 
         .paddingLeft(PADDING_LEFT)     // Use constant
-        .paddingInner(PADDING_INNER)   // Use constant
+        .paddingInner(0.5)
         .tile(d3.treemapSquarify); 
 
     const root = treemapLayout(stockData);
@@ -540,9 +903,9 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
     cell.append("rect")
         .attr("class", "tile-fill-rect")
-        .attr("x", 1.5).attr("y", 1.5)
-        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 3))
-        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 3))
+        .attr("x", 0.5).attr("y", 0.5)
+        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 1))
+        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 1))
         .attr("fill", d => calculateColor(d.data.changesPercentage ?? 0))
         .attr("stroke", "none")
         .on("mouseover", function(event, d: LeafNode) {
@@ -550,20 +913,39 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
               .attr("fill", "#ffffff"); 
             const percentage = d.data.changesPercentage ?? 0;
             const formattedPercentage = formatPercentage(percentage);
-            // Conditionally create tooltip HTML
+            const changeSpan = `<span>${formattedPercentage}</span>`;
+            
+            // --- Custom Market Cap Formatting ---
+            const formatMarketCap = (value: number | undefined): string => {
+              const num = value ?? 0;
+              if (num >= 1e12) { // Trillions
+                  return (num / 1e12).toFixed(2) + 'T'; 
+              } else if (num >= 1e9) { // Billions
+                  return (num / 1e9).toFixed(1) + 'B'; 
+              } else if (num >= 1e6) { // Millions
+                  return (num / 1e6).toFixed(1) + 'M'; 
+              } else if (num >= 1e3) { // Thousands
+                  return (num / 1e3).toFixed(0) + 'k'; 
+              } else { // < 1000
+                  return num.toFixed(0);
+              }
+            };
+            // --- End Custom Market Cap Formatting ---
+
             let tooltipHtml = '';
-            if (selectedDate === null) {
-                 // Live view: Show Name, %, Mkt Cap
-                const marketCapFormatted = d3.format(".3s")(d.data.marketCap ?? 0);
-                const companyName = d.data.name ? ` (${d.data.name})` : ''; 
-                const changeSpan = `<span>${formattedPercentage}</span>`;
-                tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/>${changeSpan}<br/>Mkt Cap: ${marketCapFormatted}`;
+            // Use the custom formatting function
+            const marketCapFormatted = formatMarketCap(d.data.marketCap); 
+
+            // Combine ETF and Live Stock logic (show Mkt Cap for both)
+            if (selectedDate === null) { 
+                 const companyName = d.data.name ? ` (${d.data.name})` : ''; // Add name if available
+                 tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/>${changeSpan}<br/>Mkt Cap: ${marketCapFormatted}`;
             } else {
                 // Historical view: Show Symbol, EOD Value (Close/Volume used for size)
-                 const historicalValue = d.data.marketCap ?? 0; // marketCap field now holds volume/close
-                 // Format differently depending on if it looks like volume or price
+                 // NOTE: Historical sizing might be inconsistent now as it uses marketCap field
+                 const historicalValue = d.data.marketCap ?? 0; 
                  const valueFormatted = historicalValue > 10000 ? d3.format(".3s")(historicalValue) : historicalValue.toFixed(2);
-                tooltipHtml = `<strong>${d.data.symbol}</strong><br/>EOD Val: ${valueFormatted}<br/>(${formattedDate})`;
+                 tooltipHtml = `<strong>${d.data.symbol}</strong><br/>EOD Val: ${valueFormatted}<br/>(${formattedDate})`;
             }
             
             tileTooltip.transition().duration(100).style("opacity", 0.9);
@@ -626,178 +1008,78 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                       .text(formatPercentage(d.data.changesPercentage));
         });
 
-    // --- Final Step: Render Sector Labels ON TOP --- 
-    const sectors = root.descendants().filter(d => d.depth === 1);
-    svg.selectAll('.sector-label')
-        .data(sectors ?? [], d => (d as d3.HierarchyRectangularNode<TreeNodeData>).data.name)
-        .join(
-            enter => enter.append('text')
-                .attr('class', 'sector-label')
-                .style('fill', '#eee')
-                .style('font-size', '12px').style('font-weight', '700')
-                .attr('text-anchor', 'start')
-                .attr('y', d => d.y0 + 10)
-                .attr('dx', 10)
-                .style('pointer-events', 'all')
-                .style('cursor', 'pointer')
-                .on("mouseover", (event, d) => sectorMouseoverHandler(event, d))
-                .on("mouseout", () => sectorMouseoutHandler()),
-            update => update
-                .style('fill', '#eee')
-                .style('pointer-events', 'all')
-                .style('cursor', 'pointer')
-                .on("mouseover", (event, d) => sectorMouseoverHandler(event, d))
-                .on("mouseout", () => sectorMouseoutHandler()),
-            exit => exit.remove()
-        )
-        .attr('x', d => d.x0)
-        .attr('y', d => d.y0 + 10)
-        .attr('dx', 10)
-        .text(d => d.data.name + ' >')
-        .each(function(_d: d3.HierarchyRectangularNode<TreeNodeData>) { 
-            const textElement = d3.select(this as SVGTextElement);
-            const availableWidth = (_d.x1 - _d.x0) - 15;
-            let textLength = (this as SVGTextElement).getComputedTextLength();
-            let text = _d.data.name + ' >';
-            if (textLength > availableWidth && availableWidth > 0) {
-                let truncatedName = _d.data.name;
-                const suffix = '... >';
-                while (textLength > availableWidth && truncatedName.length > 0) {
-                    truncatedName = truncatedName.slice(0, -1);
-                    text = truncatedName + suffix;
-                    textElement.text(text);
-                    textLength = (this as SVGTextElement).getComputedTextLength();
-                }
-                if (truncatedName.length === 0 && textLength > availableWidth) {
-                    textElement.text('');
-                } else {
-                     textElement.text(text);
-                }
-            } else if (availableWidth <= 0) {
-                 textElement.text('');
-            }
-        });
+    // --- Sector/Region/Country Labels --- 
+    // Select nodes at depth 1 (Region) and depth 2 (Country for World Map)
+    const labelNodes = root.descendants().filter(d => d.depth === 1 || (activeIndex === 'WORLD' && d.depth === 2));
 
-  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor, getPercentageStyle, sectorMouseoverHandler, sectorMouseoutHandler, selectedDate]); // ADDED handlers back to dependencies
-
-  // --- Fetch data effect (modified) ---
-  useEffect(() => {
-    if (!API_KEY) {
-        setError("API Key is missing.");
-        setIsLoading(false);
-        return;
-    }
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      setStockData(null);
-      
-      const CONSTITUENTS_URL = INDEX_ENDPOINTS[activeIndex as keyof typeof INDEX_ENDPOINTS];
-      const indexName = activeIndex;
-
-      if (!CONSTITUENTS_URL) {
-          setError(`Endpoint not defined for index type "${activeIndex}".`);
-          setIsLoading(false);
-          return;
-      }
-
-      console.log(`>>> Fetching ${indexName} constituents...`);
-      let symbols: string[] = [];
-      // Revert to just storing sector
-      let sectorMap: { [key: string]: string } = {}; 
-
-      try {
-        const constituentsResponse = await fetch(CONSTITUENTS_URL);
-        if (!constituentsResponse.ok) throw new Error(`Failed to fetch ${indexName} list: ${constituentsResponse.status}`);
-        const constituentsData = await constituentsResponse.json();
-        if (!Array.isArray(constituentsData)) throw new Error(`Invalid data format for ${indexName} constituents.`);
-        
-        // Process constituents to get symbols and sector
-        constituentsData.forEach((stock: any) => {
-            if (stock.symbol) { 
-                symbols.push(stock.symbol); 
-                sectorMap[stock.symbol] = stock.sector || "Other";
-            }
-        });
-        if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
-        console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching data...`);
-
-        let combinedData: StockQuote[] = [];
-
-        if (!formattedDate) {
-            // --- LIVE DATA LOGIC (Existing) --- 
-            const QUOTE_URL = `${API_BASE_URL}/quote/${symbols.join(',')}?apikey=${API_KEY}`;
-            const quoteResponse = await fetch(QUOTE_URL);
-            if (!quoteResponse.ok) throw new Error(`Failed to fetch ${indexName} live quotes: ${quoteResponse.status}`);
-            const quoteData = await quoteResponse.json();
-            if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} live quotes.`);
-            console.log(`>>> Received ${quoteData.length} ${indexName} live quotes. Combining...`);
-            
-             const combinedDataWithNulls = quoteData.map((quote: any) => {
-                 if (!quote.symbol || typeof quote.marketCap !== 'number') return null;
-                 const sector = sectorMap[quote.symbol];
-                 if (!sector) return null; 
-                 // Construct object matching StockQuote more closely
-                 const stockQuoteItem: StockQuote = {
-                    symbol: quote.symbol as string, 
-                    name: quote.name as string | undefined, 
-                    marketCap: quote.marketCap as number,
-                    changesPercentage: typeof quote.changesPercentage === 'number' ? quote.changesPercentage : 0,
-                    sector: sector,
-                };
-                 return stockQuoteItem;
-             });
-             combinedData = combinedDataWithNulls.filter((stock): stock is StockQuote => stock !== null);
-             // --- END LIVE DATA LOGIC ---
-        } else {
-            // --- HISTORICAL DATA LOGIC (Revised: Fetch from Backend Server) --- 
-            console.log(`>>> Fetching HISTORICAL data for ${formattedDate} from backend...`);
-            
-            const backendUrl = `http://localhost:3001/api/historical-data?index=${encodeURIComponent(indexName)}&date=${encodeURIComponent(formattedDate)}`;
-            
-            const response = await fetch(backendUrl);
-            
-            if (!response.ok) {
-                let errorMsg = `Failed to fetch historical data from backend: Status ${response.status}`;
-                try {
-                     // Try to get error message from server response
-                     const errorBody = await response.json(); 
-                     errorMsg = errorBody?.error || errorMsg; 
-                 } catch (_) {
-                     // Ignore if parsing fails, use original status message
-                 }
-                 throw new Error(errorMsg);
-            }
-            
-            // Server now returns the combined data directly
-            combinedData = await response.json();
-            
-            if (!Array.isArray(combinedData)) {
-                 throw new Error('Invalid data format received from backend server.');
-            }
-            console.log(`>>> Received ${combinedData.length} historical stocks from backend.`);
-            // --- END HISTORICAL DATA LOGIC ---
-        }
-
-        // --- COMMON PROCESSING (After live or historical fetch) ---
-        combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG');
-        if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}${formattedDate ? ` on ${formattedDate}` : ''}.`);
-        console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
-
-        const hierarchicalData = transformData(combinedData);
-        if (!hierarchicalData) throw new Error(`Failed to transform ${indexName} data.`);
-        console.log(`>>> Data fetch successful for ${indexName}${formattedDate ? ` on ${formattedDate}` : ''}.`);
-        setStockData(hierarchicalData); setError(null);
-
-      } catch (err: any) {
-          console.error(`>>> FetchData Error (${indexName}):`, err);
-          setError(err.message || `An unknown error occurred (${indexName}).`); setStockData(null);
-      } finally {
-          setIsLoading(false); 
-      }
+    // Determine label font size based on depth
+    const getLabelFontSize = (d: d3.HierarchyRectangularNode<TreeNodeData>): string => {
+        return d.depth === 1 ? '12px' : '10px'; // Smaller font for depth 2 (Country)
     };
-    fetchData();
-  }, [activeIndex, API_KEY, selectedDate]); 
+    // Determine label text based on depth
+    const getLabelText = (d: d3.HierarchyRectangularNode<TreeNodeData>): string => {
+        if (d.depth === 1) {
+            return d.data.name + ' >'; // Region label
+        } else if (d.depth === 2 && activeIndex === 'WORLD') {
+            return d.data.name; // Country label (only name)
+        } else {
+            return ''; // Should not happen with current filter
+        }
+    };
+
+    // Add/Update labels using the functions
+    const sectorLabels = svg.selectAll('.sector-label')
+        // Use a function for the key to handle nodes with potentially same name at different depths
+        .data(labelNodes, d => `${(d as d3.HierarchyRectangularNode<TreeNodeData>).depth}-${(d as d3.HierarchyRectangularNode<TreeNodeData>).data.name}`)
+        .join(
+             enter => enter.append('text')
+                .attr('class', 'sector-label')
+                .style('fill', '#ccc')
+                .style('font-weight', '500')
+                .style('pointer-events', 'all')
+                .style('cursor', 'pointer')
+                .on("mouseover", sectorMouseoverHandler)
+                .on("mouseout", sectorMouseoutHandler)
+                .attr('text-anchor', 'start')
+                .attr('dx', 10)
+                .call(enter => enter.style('opacity', 0)),
+            update => update,
+            exit => exit.transition().duration(200).style('opacity', 0).remove() // Fade out exit
+        );
+
+    // Apply common styles and transitions
+    sectorLabels
+        .attr('y', d => d.y0 + 12) // Adjusted y position (was d.y0 + 15)
+        .style('font-size', d => getLabelFontSize(d)) // Apply dynamic font size
+        .transition().duration(300) // Smooth transition for updates/enters
+        .attr('x', d => d.x0) // Base X position (left-aligned)
+        .text(d => getLabelText(d)) // Apply dynamic text
+        .style('opacity', 1) // Fade in enter/update
+        .each(function(d) { // Apply truncation logic
+             // Add type assertion for 'this'
+             const textElement = this as SVGTextElement;
+             if (!textElement || typeof textElement.getComputedTextLength !== 'function') return;
+             
+             const maxWidth = (d.x1 - d.x0) - 15; 
+             let text = getLabelText(d);
+             textElement.textContent = text;
+             // Use asserted element
+             let width = textElement.getComputedTextLength(); 
+             
+             if (width > maxWidth) {
+                 while (width > maxWidth && text.length > 3) {
+                     text = text.slice(0, -4) + '...'; 
+                     textElement.textContent = text;
+                     // Use asserted element
+                     width = textElement.getComputedTextLength(); 
+                 }
+                 if (width > maxWidth) {
+                    textElement.textContent = ''; 
+                 }
+             }
+        });
+
+  }, [stockData, dimensions, calculateColor, formatPercentage, calculateStrokeColor, getPercentageStyle, activeIndex, selectedDate]);
 
   // --- Render Logic ---
   return (
@@ -833,21 +1115,21 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
           {/* Index Tabs Container - Restore structure from provided code */}
           <div id="index-tabs"> 
             {indexTabs.map((tab) => ( // Use indexTabs array
-                <button 
+              <button
                   key={tab.id} 
                   onClick={() => setActiveIndex(tab.id)} // Use tab.id
-                  disabled={isLoading} 
+                  disabled={isLoading}
                   // Revert class name logic to use 'active'
                   className={`index-tab ${activeIndex === tab.id ? 'active' : ''}`} 
-                  style={{ 
+                  style={{
                     // Re-add inline margin
                     marginRight: '2px', 
                     cursor: isLoading ? 'default' : 'pointer' 
                    }}>
                     {tab.name}
               </button>
-            ))}
-          </div>
+          ))}
+      </div>
 
           {/* Index Description */}
            {/* Use div as in provided code */} 
@@ -863,13 +1145,13 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                 }}>
                  {INDEX_DESCRIPTIONS[activeIndex as keyof typeof INDEX_DESCRIPTIONS]}
              </p>
-            </div>
+      </div>
 
             {/* Live Data Indicator */}
             <div className="live-indicator" style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
               <span className="live-dot" style={{ marginRight: '5px' }}></span>
               <span className="live-text">Live Data</span>
-            </div>
+        </div>
         </div>
 
         {/* Status Messages */}
@@ -880,7 +1162,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         <svg ref={svgRef} id="treemap-chart-react"
             style={{ display: 'block', flexGrow: 1, minHeight: 0 }}>
             {/* D3 will populate this */}
-        </svg>
+      </svg>
 
         {/* Footer Section */}
         <div id="heatmap-footer" style={{
