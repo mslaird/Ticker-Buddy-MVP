@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AssetDetailDrawer } from './AssetDetailDrawer';
 import type { Quote } from '@/hooks/useMarketData';
 
 interface Ticker {
@@ -25,6 +25,7 @@ interface OverlayWidgetProps {
   quotes: Record<string, Quote>;
   isLoading: boolean;
   settings: OverlaySettings;
+  isPro?: boolean;
 }
 
 const positionClasses: Record<OverlaySettings['position'], string> = {
@@ -40,7 +41,7 @@ const sizeClasses: Record<OverlaySettings['size'], { container: string; text: st
   large: { container: 'w-80', text: 'text-base', padding: 'p-4' },
 };
 
-export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayWidgetProps) {
+export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = false }: OverlayWidgetProps) {
   const [selectedTicker, setSelectedTicker] = useState<Ticker | null>(null);
   
   if (!settings.pinned) return null;
@@ -57,12 +58,6 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
     if (pct === undefined) return '—';
     const sign = pct >= 0 ? '+' : '';
     return `${sign}${pct.toFixed(2)}%`;
-  };
-
-  const formatChange = (change: number | undefined) => {
-    if (change === undefined) return '—';
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(2)}`;
   };
 
   const getChangeColor = (value: number | undefined) => {
@@ -136,50 +131,13 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
         </div>
       </div>
 
-      <Dialog open={!!selectedTicker} onOpenChange={() => setSelectedTicker(null)}>
-        <DialogContent className="sm:max-w-md glass-card border-border/50">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="font-mono text-xl">{selectedTicker?.symbol}</span>
-              {selectedTicker?.display_name && (
-                <span className="text-sm text-muted-foreground font-normal">
-                  {selectedTicker.display_name}
-                </span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedTicker && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-background/40">
-                  <p className="text-xs text-muted-foreground mb-1">Price</p>
-                  <p className="text-2xl font-mono font-semibold">
-                    ${formatPrice(quotes[selectedTicker.symbol]?.price)}
-                  </p>
-                </div>
-                
-                <div className="p-4 rounded-lg bg-background/40">
-                  <p className="text-xs text-muted-foreground mb-1">Change</p>
-                  <div className={`flex items-center gap-2 ${getChangeColor(quotes[selectedTicker.symbol]?.changePct)}`}>
-                    {getChangeIcon(quotes[selectedTicker.symbol]?.changePct)}
-                    <span className="text-xl font-mono font-semibold">
-                      {formatChange(quotes[selectedTicker.symbol]?.change)}
-                    </span>
-                    <span className="text-sm font-mono">
-                      ({formatPercent(quotes[selectedTicker.symbol]?.changePct)})
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="text-xs text-muted-foreground text-center">
-                Last updated: {new Date().toLocaleTimeString()}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <AssetDetailDrawer
+        ticker={selectedTicker}
+        quote={selectedTicker ? quotes[selectedTicker.symbol] : undefined}
+        isOpen={!!selectedTicker}
+        onClose={() => setSelectedTicker(null)}
+        isPro={isPro}
+      />
     </>
   );
 }

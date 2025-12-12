@@ -61,6 +61,7 @@ export default function Overlay() {
             quotes={quotes} 
             isLoading={quotesLoading}
             settings={settings}
+            isPro={isPro}
           />
         )}
       </div>
