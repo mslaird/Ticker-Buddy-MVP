@@ -2,11 +2,13 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/s
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { OverlayPreview } from '@/components/dashboard/OverlayPreview';
 import { useTickers } from '@/hooks/useTickers';
+import { useMarketData } from '@/hooks/useMarketData';
 import { Layers, Monitor, Smartphone, Tablet, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Overlay() {
   const { tickers, loading } = useTickers();
+  const { quotes, loading: quotesLoading } = useMarketData(tickers, true);
 
   return (
     <SidebarProvider>
@@ -64,7 +66,7 @@ export default function Overlay() {
                       <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                       <span className="text-xs text-muted-foreground font-medium">TICKER BUDDY</span>
                     </div>
-                    <OverlayPreview tickers={tickers} />
+                    <OverlayPreview tickers={tickers} quotes={quotes} isLoading={quotesLoading} />
                   </div>
                 </div>
               )}

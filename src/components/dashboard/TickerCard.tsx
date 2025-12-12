@@ -8,35 +8,44 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+
+interface Quote {
+  symbol: string;
+  price: number;
+  change: number;
+  changePct: number;
+}
 
 interface TickerCardProps {
   ticker: Ticker;
+  quote?: Quote;
+  isLoading?: boolean;
+  lastUpdated?: Date | null;
   onEdit: (ticker: Ticker) => void;
   onDelete: (id: string) => void;
 }
 
-// Placeholder price data
-const getPlaceholderData = (symbol: string) => {
-  const hash = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const price = (hash % 1000) + 50 + Math.random() * 100;
-  const change = ((hash % 20) - 10) + Math.random() * 5;
-  return {
-    price: price.toFixed(2),
-    change: change.toFixed(2),
-    changePercent: ((change / price) * 100).toFixed(2),
-    isPositive: change >= 0,
-  };
-};
+function getTimeAgo(date: Date | null | undefined): string {
+  if (!date) return '';
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ago`;
+}
 
-export function TickerCard({ ticker, onEdit, onDelete }: TickerCardProps) {
+export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDelete }: TickerCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const data = getPlaceholderData(ticker.symbol);
 
   const assetTypeStyles = {
     stock: 'bg-primary/10 text-primary',
     crypto: 'bg-amber-500/10 text-amber-500',
     etf: 'bg-emerald-500/10 text-emerald-500',
   };
+
+  const hasData = quote !== undefined;
+  const isPositive = quote ? quote.changePct >= 0 : true;
 
   return (
     <div
@@ -62,10 +71,30 @@ export function TickerCard({ ticker, onEdit, onDelete }: TickerCardProps) {
 
       <div className="flex items-center gap-4">
         <div className="text-right">
-          <div className="font-mono font-semibold text-foreground">${data.price}</div>
-          <div className={`text-sm font-mono ${data.isPositive ? 'text-ticker-positive' : 'text-ticker-negative'}`}>
-            {data.isPositive ? '+' : ''}{data.change} ({data.isPositive ? '+' : ''}{data.changePercent}%)
-          </div>
+          {isLoading && !hasData ? (
+            <div className="space-y-1">
+              <Skeleton className="h-5 w-20 ml-auto" />
+              <Skeleton className="h-4 w-24 ml-auto" />
+            </div>
+          ) : hasData ? (
+            <>
+              <div className="font-mono font-semibold text-foreground">
+                ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <span className={`text-sm font-mono ${isPositive ? 'text-ticker-positive' : 'text-ticker-negative'}`}>
+                  {isPositive ? '+' : ''}{quote.changePct.toFixed(2)}%
+                </span>
+                {lastUpdated && (
+                  <span className="text-xs text-muted-foreground">
+                    {getTimeAgo(lastUpdated)}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-muted-foreground font-mono">—</div>
+          )}
         </div>
 
         <DropdownMenu>
