@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Ticker } from './useTickers';
 
-interface Quote {
+export interface Quote {
   symbol: string;
   price: number;
   change: number;
@@ -15,9 +15,9 @@ interface MarketDataState {
   lastUpdated: Date | null;
 }
 
-const POLL_INTERVAL = 15000; // 15 seconds
+const DEFAULT_POLL_INTERVAL = 15; // seconds
 
-export function useMarketData(tickers: Ticker[], isActive: boolean) {
+export function useMarketData(tickers: Ticker[], isActive: boolean, pollIntervalSeconds: number = DEFAULT_POLL_INTERVAL) {
   const [state, setState] = useState<MarketDataState>({
     quotes: {},
     loading: false,
@@ -111,7 +111,7 @@ export function useMarketData(tickers: Ticker[], isActive: boolean) {
         return;
       }
       fetchQuotes();
-    }, POLL_INTERVAL);
+    }, pollIntervalSeconds * 1000);
 
     return () => {
       if (intervalRef.current) {
@@ -119,7 +119,7 @@ export function useMarketData(tickers: Ticker[], isActive: boolean) {
         intervalRef.current = null;
       }
     };
-  }, [isActive, tickers.length, fetchQuotes]);
+  }, [isActive, tickers.length, fetchQuotes, pollIntervalSeconds]);
 
   return state;
 }
