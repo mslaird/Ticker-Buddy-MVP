@@ -5,6 +5,7 @@ import { TickerCard } from '@/components/dashboard/TickerCard';
 import { AddTickerModal } from '@/components/dashboard/AddTickerModal';
 import { OverlayPreview } from '@/components/dashboard/OverlayPreview';
 import { useTickers, Ticker } from '@/hooks/useTickers';
+import { useMarketData } from '@/hooks/useMarketData';
 import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Plus, Sparkles, TrendingUp, Layers, Loader2 } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTicker, setEditingTicker] = useState<Ticker | null>(null);
   const { tickers, loading, addTicker, updateTicker, deleteTicker } = useTickers();
+  const { quotes, loading: quotesLoading, lastUpdated } = useMarketData(tickers, true);
   const { profile, getTickerLimit } = useProfile();
   const navigate = useNavigate();
 
@@ -128,6 +130,9 @@ export default function Dashboard() {
                       <TickerCard
                         key={ticker.id}
                         ticker={ticker}
+                        quote={quotes[ticker.symbol]}
+                        isLoading={quotesLoading && !quotes[ticker.symbol]}
+                        lastUpdated={lastUpdated}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                       />
@@ -162,7 +167,7 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="bg-background/50 rounded-lg p-4 border border-border/50 min-h-[200px]">
-                  <OverlayPreview tickers={tickers} />
+                  <OverlayPreview tickers={tickers} quotes={quotes} isLoading={quotesLoading} />
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-4 text-center">

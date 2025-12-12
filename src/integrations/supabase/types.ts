@@ -48,8 +48,12 @@ export type Database = {
         Row: {
           asset_type: string
           created_at: string
+          day_change: number | null
+          day_change_pct: number | null
           display_name: string | null
           id: string
+          last_price: number | null
+          last_updated_at: string | null
           symbol: string
           updated_at: string
           user_id: string
@@ -57,8 +61,12 @@ export type Database = {
         Insert: {
           asset_type?: string
           created_at?: string
+          day_change?: number | null
+          day_change_pct?: number | null
           display_name?: string | null
           id?: string
+          last_price?: number | null
+          last_updated_at?: string | null
           symbol: string
           updated_at?: string
           user_id: string
@@ -66,8 +74,12 @@ export type Database = {
         Update: {
           asset_type?: string
           created_at?: string
+          day_change?: number | null
+          day_change_pct?: number | null
           display_name?: string | null
           id?: string
+          last_price?: number | null
+          last_updated_at?: string | null
           symbol?: string
           updated_at?: string
           user_id?: string

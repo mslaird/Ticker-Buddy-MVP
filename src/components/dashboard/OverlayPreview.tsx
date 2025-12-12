@@ -1,23 +1,21 @@
 import { Ticker } from '@/hooks/useTickers';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+
+interface Quote {
+  symbol: string;
+  price: number;
+  change: number;
+  changePct: number;
+}
 
 interface OverlayPreviewProps {
   tickers: Ticker[];
+  quotes: Record<string, Quote>;
+  isLoading?: boolean;
 }
 
-const getPlaceholderData = (symbol: string) => {
-  const hash = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const price = (hash % 1000) + 50 + Math.random() * 100;
-  const change = ((hash % 20) - 10) + Math.random() * 5;
-  return {
-    price: price.toFixed(2),
-    changePercent: ((change / price) * 100).toFixed(2),
-    isPositive: change > 0,
-    isNegative: change < 0,
-  };
-};
-
-export function OverlayPreview({ tickers }: OverlayPreviewProps) {
+export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewProps) {
   if (tickers.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -29,7 +27,10 @@ export function OverlayPreview({ tickers }: OverlayPreviewProps) {
   return (
     <div className="space-y-1.5">
       {tickers.slice(0, 5).map((ticker) => {
-        const data = getPlaceholderData(ticker.symbol);
+        const quote = quotes[ticker.symbol];
+        const hasData = quote !== undefined;
+        const isPositive = quote ? quote.changePct > 0 : false;
+        const isNegative = quote ? quote.changePct < 0 : false;
         
         return (
           <div
@@ -43,25 +44,36 @@ export function OverlayPreview({ tickers }: OverlayPreviewProps) {
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-foreground">
-                ${data.price}
-              </span>
-              <div className={`flex items-center gap-0.5 text-xs font-mono ${
-                data.isPositive 
-                  ? 'text-ticker-positive' 
-                  : data.isNegative 
-                    ? 'text-ticker-negative' 
-                    : 'text-ticker-neutral'
-              }`}>
-                {data.isPositive ? (
-                  <TrendingUp className="h-3 w-3" />
-                ) : data.isNegative ? (
-                  <TrendingDown className="h-3 w-3" />
-                ) : (
-                  <Minus className="h-3 w-3" />
-                )}
-                <span>{data.isPositive ? '+' : ''}{data.changePercent}%</span>
-              </div>
+              {isLoading && !hasData ? (
+                <>
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-4 w-14" />
+                </>
+              ) : hasData ? (
+                <>
+                  <span className="font-mono text-sm text-foreground">
+                    ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <div className={`flex items-center gap-0.5 text-xs font-mono ${
+                    isPositive 
+                      ? 'text-ticker-positive' 
+                      : isNegative 
+                        ? 'text-ticker-negative' 
+                        : 'text-ticker-neutral'
+                  }`}>
+                    {isPositive ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : isNegative ? (
+                      <TrendingDown className="h-3 w-3" />
+                    ) : (
+                      <Minus className="h-3 w-3" />
+                    )}
+                    <span>{isPositive ? '+' : ''}{quote.changePct.toFixed(2)}%</span>
+                  </div>
+                </>
+              ) : (
+                <span className="font-mono text-sm text-muted-foreground">—</span>
+              )}
             </div>
           </div>
         );
