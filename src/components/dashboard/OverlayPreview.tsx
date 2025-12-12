@@ -1,7 +1,6 @@
 import { Ticker } from '@/hooks/useTickers';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 
 interface Quote {
   symbol: string;
@@ -16,17 +15,11 @@ interface OverlayPreviewProps {
   isLoading?: boolean;
 }
 
-const assetTypeLabels: Record<string, string> = {
-  stock: 'Stock',
-  crypto: 'Crypto',
-  etf: 'ETF',
-};
-
 export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewProps) {
   if (tickers.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        Add a ticker to see your overlay preview.
+        Add tickers to see preview
       </div>
     );
   }
@@ -42,18 +35,15 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
         return (
           <div
             key={ticker.id}
-            className="ticker-widget flex items-center justify-between gap-3 animate-slide-in"
+            className="ticker-widget flex items-center justify-between gap-4 animate-slide-in"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-mono font-semibold text-foreground text-sm truncate">
+              <span className="font-mono font-medium text-foreground text-sm truncate">
                 {ticker.symbol}
               </span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium text-muted-foreground bg-muted/50">
-                {assetTypeLabels[ticker.asset_type] || ticker.asset_type}
-              </Badge>
             </div>
             
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               {isLoading && !hasData ? (
                 <>
                   <Skeleton className="h-4 w-12" />
