@@ -35,10 +35,10 @@ const positionClasses: Record<OverlaySettings['position'], string> = {
   'bottom-right': 'bottom-4 right-4',
 };
 
-const sizeClasses: Record<OverlaySettings['size'], { container: string; text: string; padding: string }> = {
-  small: { container: 'w-48', text: 'text-xs', padding: 'p-2' },
-  medium: { container: 'w-64', text: 'text-sm', padding: 'p-3' },
-  large: { container: 'w-80', text: 'text-base', padding: 'p-4' },
+const sizeClasses: Record<OverlaySettings['size'], { container: string; text: string; textCompact: string; padding: string; paddingCompact: string }> = {
+  small: { container: 'w-48', text: 'text-xs', textCompact: 'text-[10px]', padding: 'p-2', paddingCompact: 'p-1.5' },
+  medium: { container: 'w-64', text: 'text-sm', textCompact: 'text-xs', padding: 'p-3', paddingCompact: 'p-2' },
+  large: { container: 'w-80', text: 'text-base', textCompact: 'text-sm', padding: 'p-4', paddingCompact: 'p-2.5' },
 };
 
 export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = false }: OverlayWidgetProps) {
@@ -47,6 +47,9 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
   if (!settings.pinned) return null;
 
   const sizeConfig = sizeClasses[settings.size];
+  const isCompact = settings.compactMode;
+  const textSize = isCompact ? sizeConfig.textCompact : sizeConfig.text;
+  const paddingSize = isCompact ? sizeConfig.paddingCompact : sizeConfig.padding;
 
   const formatPrice = (price: number | undefined) => {
     if (price === undefined) return '—';
@@ -77,17 +80,17 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
         style={{ opacity: settings.opacity / 100 }}
       >
         <div className="glass-card rounded-xl shadow-glow border border-border/50 backdrop-blur-xl overflow-hidden">
-          <div className={`${sizeConfig.padding}`}>
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className={`${sizeConfig.text} text-muted-foreground font-medium tracking-wide`}>
+          <div className={paddingSize}>
+            <div className={`flex items-center gap-2 ${isCompact ? 'mb-1 pb-1' : 'mb-2 pb-2'} border-b border-border/50`}>
+              <div className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-primary animate-pulse`} />
+              <span className={`${textSize} text-muted-foreground font-medium tracking-wide`}>
                 TICKER BUDDY
               </span>
             </div>
             
-            <div className="space-y-1.5">
+            <div className={isCompact ? 'space-y-0.5' : 'space-y-1.5'}>
               {tickers.length === 0 ? (
-                <p className={`${sizeConfig.text} text-muted-foreground text-center py-2`}>
+                <p className={`${textSize} text-muted-foreground text-center py-2`}>
                   No tickers added
                 </p>
               ) : (
@@ -99,31 +102,33 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                     <button
                       key={ticker.id}
                       onClick={() => setSelectedTicker(ticker)}
-                      className={`w-full flex items-center justify-between ${sizeConfig.padding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                      className={`w-full flex items-center justify-between ${isCompact ? 'px-1.5 py-1' : paddingSize} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`${sizeConfig.text} font-mono font-semibold text-foreground`}>
+                        <span className={`${textSize} font-mono font-semibold text-foreground`}>
                           {ticker.symbol}
                         </span>
                       </div>
                       
-                      <div className="flex flex-col items-end gap-0.5">
+                      <div className={`flex flex-col items-end ${isCompact ? 'gap-0' : 'gap-0.5'}`}>
                         {isLoading && !hasData ? (
-                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
                         ) : (
                           <>
                             <div className="flex items-center gap-2">
-                              <span className={`${sizeConfig.text} font-mono text-foreground`}>
+                              <span className={`${textSize} font-mono text-foreground`}>
                                 ${formatPrice(quote?.price)}
                               </span>
-                              <span className={`${sizeConfig.text} font-mono flex items-center gap-1 ${getChangeColor(quote?.changePct)}`}>
+                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote?.changePct)}`}>
                                 {getChangeIcon(quote?.changePct)}
                                 {formatPercent(quote?.changePct)}
                               </span>
                             </div>
-                            <span className="text-[10px] text-muted-foreground/70">
-                              {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
-                            </span>
+                            {!isCompact && (
+                              <span className="text-[10px] text-muted-foreground/70">
+                                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                              </span>
+                            )}
                           </>
                         )}
                       </div>
