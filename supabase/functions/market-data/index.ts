@@ -12,8 +12,8 @@ const CACHE_TTL_MS = 15000;
 
 interface QuoteData {
   price: number;
-  change: number;
-  changePct: number;
+  change: number | null;
+  changePct: number | null;
   marketCap?: number;
   volume24h?: number;
   highRange?: number;
@@ -217,8 +217,8 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
 
     const quote: QuoteData = {
       price: Math.round(price * 100) / 100,
-      change: change !== null ? Math.round(change * 100) / 100 : 0,
-      changePct: changePct !== null ? Math.round(changePct * 100) / 100 : 0,
+      change: change !== null ? Math.round(change * 100) / 100 : null,
+      changePct: changePct !== null ? Math.round(changePct * 100) / 100 : null,
       marketCap: meta.marketCap,
       volume24h: meta.regularMarketVolume,
       highRange: meta.fiftyTwoWeekHigh,
