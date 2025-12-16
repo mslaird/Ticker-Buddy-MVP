@@ -13,6 +13,10 @@ interface CryptoQuote {
   price: number;
   change: number;
   changePct: number;
+  marketCap?: number;
+  volume24h?: number;
+  highRange?: number;
+  lowRange?: number;
 }
 
 // Common crypto symbol to CoinGecko ID mapping
@@ -110,8 +114,9 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> 
   }
 
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`;
-    console.log(`Fetching CoinGecko price for ${symbol} (${coinId})`);
+    // Use coins/markets endpoint to get extended data including market cap, volume, ath, atl
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinId}&price_change_percentage=24h`;
+    console.log(`Fetching CoinGecko data for ${symbol} (${coinId})`);
     
     const response = await fetch(url, {
       headers: {
@@ -125,26 +130,30 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> 
     }
 
     const data = await response.json();
-    const coinData = data[coinId];
     
-    if (!coinData || coinData.usd === undefined) {
+    if (!Array.isArray(data) || data.length === 0) {
       console.error(`Invalid CoinGecko response for ${coinId}`);
       return null;
     }
 
-    const price = coinData.usd;
-    const changePct = coinData.usd_24h_change || 0;
-    const change = price * (changePct / 100);
+    const coinData = data[0];
+    const price = coinData.current_price;
+    const changePct = coinData.price_change_percentage_24h || 0;
+    const change = coinData.price_change_24h || 0;
 
     const quote: CryptoQuote = {
       price: Math.round(price * 100) / 100,
       change: Math.round(change * 100) / 100,
       changePct: Math.round(changePct * 100) / 100,
+      marketCap: coinData.market_cap,
+      volume24h: coinData.total_volume,
+      highRange: coinData.ath, // All-time high as high range
+      lowRange: coinData.atl,  // All-time low as low range
     };
 
     // Cache the result
     cryptoCache.set(coinId, { data: quote, timestamp: Date.now() });
-    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}`);
+    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}, MCap: ${quote.marketCap}`);
 
     return quote;
   } catch (error) {
@@ -164,6 +173,10 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
         change: cryptoQuote.change,
         changePct: cryptoQuote.changePct,
         isDelayed: false, // Live data
+        marketCap: cryptoQuote.marketCap,
+        volume24h: cryptoQuote.volume24h,
+        highRange: cryptoQuote.highRange,
+        lowRange: cryptoQuote.lowRange,
       };
     }
     // Fall back to mock if CoinGecko fails

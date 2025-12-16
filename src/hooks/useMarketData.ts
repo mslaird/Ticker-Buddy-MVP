@@ -8,6 +8,10 @@ export interface Quote {
   change: number;
   changePct: number;
   isDelayed?: boolean;
+  marketCap?: number;
+  volume24h?: number;
+  highRange?: number;
+  lowRange?: number;
 }
 
 interface MarketDataState {
