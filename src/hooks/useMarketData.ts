@@ -4,10 +4,11 @@ import { Ticker } from './useTickers';
 
 export interface Quote {
   symbol: string;
-  price: number;
-  change: number;
-  changePct: number;
+  price: number | null;
+  change: number | null;
+  changePct: number | null;
   isDelayed?: boolean;
+  quoteStatus?: 'available' | 'unavailable';
   marketCap?: number;
   volume24h?: number;
   highRange?: number;
@@ -69,11 +70,11 @@ export function useMarketData(tickers: Ticker[], isActive: boolean, pollInterval
       // Reset error count on success
       errorCountRef.current = 0;
 
-      // Update tickers in database with latest prices
+      // Update tickers in database with latest prices (only if available)
       const now = new Date().toISOString();
       for (const ticker of tickers) {
         const quote = quotes[ticker.symbol];
-        if (quote) {
+        if (quote && quote.price !== null && quote.quoteStatus !== 'unavailable') {
           await supabase
             .from('tickers')
             .update({

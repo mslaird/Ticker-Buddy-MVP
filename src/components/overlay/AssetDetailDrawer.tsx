@@ -98,20 +98,22 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
   
   if (!ticker) return null;
 
-  const formatPrice = (price: number | undefined) => {
-    if (price === undefined) return '—';
+  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === undefined || price === null) return '—';
     return price >= 1000 ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
       : price.toFixed(2);
   };
 
-  const formatPercent = (pct: number | undefined) => {
-    if (pct === undefined) return '—';
+  const formatPercent = (pct: number | null | undefined) => {
+    if (pct === undefined || pct === null) return '—';
     const sign = pct >= 0 ? '+' : '';
     return `${sign}${pct.toFixed(2)}%`;
   };
 
-  const formatChange = (change: number | undefined) => {
-    if (change === undefined) return '—';
+  const formatChange = (change: number | null | undefined) => {
+    if (change === undefined || change === null) return '—';
     const sign = change >= 0 ? '+' : '';
     return `${sign}${change.toFixed(2)}`;
   };
@@ -124,13 +126,13 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
     return num.toFixed(2);
   };
 
-  const getChangeColor = (value: number | undefined) => {
-    if (value === undefined || value === 0) return 'text-muted-foreground';
+  const getChangeColor = (value: number | null | undefined) => {
+    if (value === undefined || value === null || value === 0) return 'text-muted-foreground';
     return value > 0 ? 'text-green-500' : 'text-red-500';
   };
 
-  const getChangeIcon = (value: number | undefined) => {
-    if (value === undefined || value === 0) return <Minus className="h-4 w-4" />;
+  const getChangeIcon = (value: number | null | undefined) => {
+    if (value === undefined || value === null || value === 0) return <Minus className="h-4 w-4" />;
     return value > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />;
   };
 
@@ -175,16 +177,25 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
         </SheetHeader>
 
         <div className="space-y-6 py-6">
+          {/* Unavailable Warning */}
+          {isUnavailable && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm">
+              Quote data unavailable for this symbol. It may be an invalid ticker or temporarily unavailable.
+            </div>
+          )}
+
           {/* Current Price */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Price</p>
-              <Badge 
-                variant={quote?.isDelayed === false ? 'default' : 'secondary'} 
-                className="text-[10px] px-1.5 py-0"
-              >
-                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
-              </Badge>
+              {!isUnavailable && (
+                <Badge 
+                  variant={quote?.isDelayed === false ? 'default' : 'secondary'} 
+                  className="text-[10px] px-1.5 py-0"
+                >
+                  {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                </Badge>
+              )}
             </div>
             <p className="text-4xl font-mono font-bold text-foreground">
               ${formatPrice(quote?.price)}
