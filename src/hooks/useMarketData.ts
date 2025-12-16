@@ -7,6 +7,7 @@ export interface Quote {
   price: number;
   change: number;
   changePct: number;
+  isDelayed?: boolean;
 }
 
 interface MarketDataState {
