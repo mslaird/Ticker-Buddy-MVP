@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AddTickerModalProps {
   open: boolean;
@@ -24,6 +25,30 @@ interface AddTickerModalProps {
   onSubmit: (symbol: string, assetType: 'stock' | 'crypto' | 'etf', displayName?: string) => Promise<{ error: Error | null }>;
   editingTicker?: Ticker | null;
   onUpdate?: (id: string, updates: Partial<Pick<Ticker, 'symbol' | 'asset_type' | 'display_name'>>) => Promise<{ error: Error | null }>;
+}
+
+// Validate symbol format locally
+function validateSymbolFormat(symbol: string, assetType: string): { valid: boolean; reason?: string } {
+  const trimmed = symbol.trim().toUpperCase();
+  
+  if (!trimmed) {
+    return { valid: false, reason: 'Symbol is required' };
+  }
+  
+  // Crypto can have various formats (1-10 chars)
+  if (assetType === 'crypto') {
+    if (!/^[A-Z0-9]{1,10}$/.test(trimmed)) {
+      return { valid: false, reason: 'Invalid crypto symbol' };
+    }
+    return { valid: true };
+  }
+  
+  // Stocks/ETFs: 1-5 letters only
+  if (!/^[A-Z]{1,5}$/.test(trimmed)) {
+    return { valid: false, reason: 'Stock/ETF symbols must be 1-5 letters (A-Z)' };
+  }
+  
+  return { valid: true };
 }
 
 export function AddTickerModal({ 
@@ -58,22 +83,42 @@ export function AddTickerModal({
     e.preventDefault();
     setError('');
 
-    if (!symbol.trim()) {
-      setError('Symbol is required');
-      return;
-    }
-
-    if (symbol.length > 10) {
-      setError('Symbol must be 10 characters or less');
+    const trimmedSymbol = symbol.trim().toUpperCase();
+    
+    // Local format validation
+    const formatCheck = validateSymbolFormat(trimmedSymbol, assetType);
+    if (!formatCheck.valid) {
+      setError(formatCheck.reason || 'Invalid symbol');
       return;
     }
 
     setLoading(true);
+    
+    // For stocks/ETFs, validate symbol exists via edge function
+    if (assetType === 'stock' || assetType === 'etf') {
+      try {
+        const { data, error: validateError } = await supabase.functions.invoke('market-data', {
+          body: { action: 'validate', symbol: trimmedSymbol, assetType },
+        });
+        
+        if (validateError) {
+          // If validation fails due to network, allow submission
+          console.warn('Symbol validation failed:', validateError);
+        } else if (data && !data.valid) {
+          setError(data.reason || 'Symbol not found');
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Network error - allow submission
+        console.warn('Symbol validation network error:', err);
+      }
+    }
 
     try {
       if (isEditing && onUpdate) {
         const { error } = await onUpdate(editingTicker.id, {
-          symbol: symbol.trim(),
+          symbol: trimmedSymbol,
           asset_type: assetType,
           display_name: displayName.trim() || null,
         });
@@ -84,7 +129,7 @@ export function AddTickerModal({
         }
       } else {
         const { error } = await onSubmit(
-          symbol.trim(),
+          trimmedSymbol,
           assetType,
           displayName.trim() || undefined
         );
