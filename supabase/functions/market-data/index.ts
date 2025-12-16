@@ -115,34 +115,29 @@ function getMockQuote(symbol: string, assetType: string) {
 async function fetchCoinGeckoPrice(symbol: string): Promise<QuoteData | null> {
   const coinId = cryptoIdMap[symbol.toUpperCase()];
   if (!coinId) {
-    console.log(`Unknown crypto symbol: ${symbol}, falling back to mock`);
     return null;
   }
 
   // Check cache first
   const cached = cryptoCache.get(coinId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    console.log(`Using cached CoinGecko data for ${symbol}`);
     return cached.data;
   }
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinId}&price_change_percentage=24h`;
-    console.log(`Fetching CoinGecko data for ${symbol} (${coinId})`);
     
     const response = await fetch(url, {
       headers: { 'Accept': 'application/json' },
     });
 
     if (!response.ok) {
-      console.error(`CoinGecko API error: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
     
     if (!Array.isArray(data) || data.length === 0) {
-      console.error(`Invalid CoinGecko response for ${coinId}`);
       return null;
     }
 
@@ -158,11 +153,8 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<QuoteData | null> {
     };
 
     cryptoCache.set(coinId, { data: quote, timestamp: Date.now() });
-    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}`);
-
     return quote;
   } catch (error) {
-    console.error(`Failed to fetch CoinGecko price for ${symbol}:`, error);
     return null;
   }
 }
@@ -173,14 +165,12 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
   // Check cache first
   const cached = yahooCache.get(upperSymbol);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    console.log(`[yahoo_cached] ${upperSymbol}`);
     return cached.data;
   }
 
   try {
-    // Use the chart API endpoint which is more reliable and doesn't require auth
+    // Use the chart API endpoint
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=5d&includePrePost=true`;
-    console.log(`[yahoo_fetching] ${upperSymbol}`);
     
     const response = await fetch(url, {
       headers: {
@@ -190,22 +180,17 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
     });
 
     if (!response.ok) {
-      console.error(`[yahoo_error] ${upperSymbol} status=${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[yahoo_raw] ${upperSymbol}: ${JSON.stringify(data).slice(0, 500)}`);
-    
     const chartResult = data?.chart?.result?.[0];
     if (!chartResult) {
-      console.error(`[yahoo_empty] ${upperSymbol} - no chart result`);
       return null;
     }
 
     const meta = chartResult.meta;
     if (!meta || meta.regularMarketPrice === undefined) {
-      console.error(`[yahoo_no_price] ${upperSymbol} - meta missing regularMarketPrice`);
       return null;
     }
 
@@ -216,7 +201,6 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
     }
     
     if (price === null || price === undefined) {
-      console.error(`[yahoo_fallback_mock] ${upperSymbol} - no valid price found`);
       return null;
     }
 
@@ -236,11 +220,8 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
     };
 
     yahooCache.set(upperSymbol, { data: quote, timestamp: Date.now() });
-    console.log(`[yahoo_success] ${upperSymbol}: price=$${quote.price}, change=${quote.changePct}%, 52wk=${quote.lowRange}-${quote.highRange}`);
-
     return quote;
   } catch (error) {
-    console.error(`[yahoo_exception] ${upperSymbol}:`, error);
     return null;
   }
 }
@@ -264,14 +245,12 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
           lowRange: cryptoQuote.lowRange,
         };
       }
-      console.log(`[crypto_fallback_mock] ${symbol}`);
     }
     
     // Stocks/ETFs: use Yahoo Finance (delayed)
     if (assetType === 'stock' || assetType === 'etf') {
       const yahooQuote = await fetchYahooPrice(symbol);
       if (yahooQuote) {
-        console.log(`[yahoo_used] ${symbol} price=$${yahooQuote.price}`);
         return {
           symbol: symbol.toUpperCase(),
           price: yahooQuote.price,
@@ -284,7 +263,6 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
           lowRange: yahooQuote.lowRange,
         };
       }
-      console.log(`[equity_fallback_mock] ${symbol} (${assetType})`);
     }
   }
 
@@ -308,19 +286,15 @@ serve(async (req) => {
       );
     }
 
-    // Default to production mode (CoinGecko for crypto, mock for equities)
+    // Default to production mode (CoinGecko for crypto, Yahoo for equities)
     const providerMode = Deno.env.get('MARKET_DATA_PROVIDER') || 'production';
     const useProduction = providerMode === 'production';
-    
-    console.log(`Fetching quotes for ${symbols.length} symbols (mode: ${providerMode})`);
 
     const quotes = await Promise.all(
       symbols.map((item: { symbol: string; assetType: string }) => 
         getQuote(item.symbol, item.assetType || 'stock', useProduction)
       )
     );
-
-    console.log('Generated quotes:', quotes.map(q => `${q.symbol}: $${q.price} (${q.isDelayed ? 'delayed' : 'live'})`));
 
     return new Response(
       JSON.stringify({ quotes }),
