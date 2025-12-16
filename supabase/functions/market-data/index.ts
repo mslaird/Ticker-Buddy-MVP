@@ -5,6 +5,40 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Simple in-memory cache for CoinGecko responses (15 second TTL)
+const cryptoCache: Map<string, { data: CryptoQuote; timestamp: number }> = new Map();
+const CACHE_TTL_MS = 15000;
+
+interface CryptoQuote {
+  price: number;
+  change: number;
+  changePct: number;
+}
+
+// Common crypto symbol to CoinGecko ID mapping
+const cryptoIdMap: Record<string, string> = {
+  'BTC': 'bitcoin',
+  'ETH': 'ethereum',
+  'SOL': 'solana',
+  'DOGE': 'dogecoin',
+  'XRP': 'ripple',
+  'ADA': 'cardano',
+  'AVAX': 'avalanche-2',
+  'DOT': 'polkadot',
+  'MATIC': 'matic-network',
+  'LINK': 'chainlink',
+  'UNI': 'uniswap',
+  'ATOM': 'cosmos',
+  'LTC': 'litecoin',
+  'BCH': 'bitcoin-cash',
+  'NEAR': 'near',
+  'APT': 'aptos',
+  'ARB': 'arbitrum',
+  'OP': 'optimism',
+  'FIL': 'filecoin',
+  'SHIB': 'shiba-inu',
+};
+
 // Generate stable mock prices using symbol as seed
 function hashCode(str: string): number {
   let hash = 0;
@@ -16,7 +50,6 @@ function hashCode(str: string): number {
   return Math.abs(hash);
 }
 
-// Seeded random number generator for stable prices
 function seededRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -26,37 +59,29 @@ function getBasePrice(symbol: string, assetType: string): number {
   const hash = hashCode(symbol);
   
   if (assetType === 'crypto') {
-    // Crypto: wide range from $0.50 to $50000
     const tier = hash % 4;
-    if (tier === 0) return 0.5 + (hash % 100) / 10; // Low cap: $0.50 - $10.50
-    if (tier === 1) return 10 + (hash % 500); // Mid cap: $10 - $510
-    if (tier === 2) return 500 + (hash % 5000); // High cap: $500 - $5500
-    return 20000 + (hash % 30000); // BTC-like: $20000 - $50000
+    if (tier === 0) return 0.5 + (hash % 100) / 10;
+    if (tier === 1) return 10 + (hash % 500);
+    if (tier === 2) return 500 + (hash % 5000);
+    return 20000 + (hash % 30000);
   }
   
   if (assetType === 'etf') {
-    // ETFs: $50 - $500
     return 50 + (hash % 450);
   }
   
-  // Stocks: $10 - $500
   return 10 + (hash % 490);
 }
 
-function getQuote(symbol: string, assetType: string) {
+function getMockQuote(symbol: string, assetType: string) {
   const basePrice = getBasePrice(symbol, assetType);
-  
-  // Use current minute as part of seed for slight variation over time
-  // But keep it stable within the same minute
   const now = new Date();
-  const timeSeed = Math.floor(now.getTime() / 60000); // Changes every minute
+  const timeSeed = Math.floor(now.getTime() / 60000);
   const combinedSeed = hashCode(symbol) + timeSeed;
   
-  // Small random movement: -2% to +2%
   const movementPct = (seededRandom(combinedSeed) - 0.5) * 0.04;
   const price = basePrice * (1 + movementPct);
   
-  // Day change: -5% to +5% based on symbol + day
   const daySeed = hashCode(symbol + now.toDateString());
   const dayChangePct = (seededRandom(daySeed) - 0.5) * 0.1;
   const dayChange = basePrice * dayChangePct;
@@ -66,11 +91,90 @@ function getQuote(symbol: string, assetType: string) {
     price: Math.round(price * 100) / 100,
     change: Math.round(dayChange * 100) / 100,
     changePct: Math.round(dayChangePct * 10000) / 100,
+    isDelayed: true,
   };
 }
 
+async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> {
+  const coinId = cryptoIdMap[symbol.toUpperCase()];
+  if (!coinId) {
+    console.log(`Unknown crypto symbol: ${symbol}, falling back to mock`);
+    return null;
+  }
+
+  // Check cache first
+  const cached = cryptoCache.get(coinId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`Using cached data for ${symbol}`);
+    return cached.data;
+  }
+
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`;
+    console.log(`Fetching CoinGecko price for ${symbol} (${coinId})`);
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`CoinGecko API error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const coinData = data[coinId];
+    
+    if (!coinData || coinData.usd === undefined) {
+      console.error(`Invalid CoinGecko response for ${coinId}`);
+      return null;
+    }
+
+    const price = coinData.usd;
+    const changePct = coinData.usd_24h_change || 0;
+    const change = price * (changePct / 100);
+
+    const quote: CryptoQuote = {
+      price: Math.round(price * 100) / 100,
+      change: Math.round(change * 100) / 100,
+      changePct: Math.round(changePct * 100) / 100,
+    };
+
+    // Cache the result
+    cryptoCache.set(coinId, { data: quote, timestamp: Date.now() });
+    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}`);
+
+    return quote;
+  } catch (error) {
+    console.error(`Failed to fetch CoinGecko price for ${symbol}:`, error);
+    return null;
+  }
+}
+
+async function getQuote(symbol: string, assetType: string, useProduction: boolean) {
+  // In production mode, use CoinGecko for crypto
+  if (useProduction && assetType === 'crypto') {
+    const cryptoQuote = await fetchCoinGeckoPrice(symbol);
+    if (cryptoQuote) {
+      return {
+        symbol: symbol.toUpperCase(),
+        price: cryptoQuote.price,
+        change: cryptoQuote.change,
+        changePct: cryptoQuote.changePct,
+        isDelayed: false, // Live data
+      };
+    }
+    // Fall back to mock if CoinGecko fails
+    console.log(`Falling back to mock for ${symbol}`);
+  }
+
+  // Use mock for stocks/ETFs or as fallback
+  return getMockQuote(symbol, assetType);
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -86,13 +190,19 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Fetching quotes for ${symbols.length} symbols:`, symbols.map(s => s.symbol));
+    // Default to production mode (CoinGecko for crypto, mock for equities)
+    const providerMode = Deno.env.get('MARKET_DATA_PROVIDER') || 'production';
+    const useProduction = providerMode === 'production';
     
-    const quotes = symbols.map((item: { symbol: string; assetType: string }) => 
-      getQuote(item.symbol, item.assetType || 'stock')
+    console.log(`Fetching quotes for ${symbols.length} symbols (mode: ${providerMode})`);
+
+    const quotes = await Promise.all(
+      symbols.map((item: { symbol: string; assetType: string }) => 
+        getQuote(item.symbol, item.assetType || 'stock', useProduction)
+      )
     );
 
-    console.log('Generated quotes:', quotes);
+    console.log('Generated quotes:', quotes.map(q => `${q.symbol}: $${q.price} (${q.isDelayed ? 'delayed' : 'live'})`));
 
     return new Response(
       JSON.stringify({ quotes }),

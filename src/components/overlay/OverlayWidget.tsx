@@ -107,17 +107,22 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                         </span>
                       </div>
                       
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-end gap-0.5">
                         {isLoading && !hasData ? (
                           <Skeleton className="h-4 w-16" />
                         ) : (
                           <>
-                            <span className={`${sizeConfig.text} font-mono text-foreground`}>
-                              ${formatPrice(quote?.price)}
-                            </span>
-                            <span className={`${sizeConfig.text} font-mono flex items-center gap-1 ${getChangeColor(quote?.changePct)}`}>
-                              {getChangeIcon(quote?.changePct)}
-                              {formatPercent(quote?.changePct)}
+                            <div className="flex items-center gap-2">
+                              <span className={`${sizeConfig.text} font-mono text-foreground`}>
+                                ${formatPrice(quote?.price)}
+                              </span>
+                              <span className={`${sizeConfig.text} font-mono flex items-center gap-1 ${getChangeColor(quote?.changePct)}`}>
+                                {getChangeIcon(quote?.changePct)}
+                                {formatPercent(quote?.changePct)}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground/70">
+                              {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
                             </span>
                           </>
                         )}

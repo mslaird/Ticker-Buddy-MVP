@@ -169,7 +169,15 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
         <div className="space-y-6 py-6">
           {/* Current Price */}
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Price</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Price</p>
+              <Badge 
+                variant={quote?.isDelayed === false ? 'default' : 'secondary'} 
+                className="text-[10px] px-1.5 py-0"
+              >
+                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+              </Badge>
+            </div>
             <p className="text-4xl font-mono font-bold text-foreground">
               ${formatPrice(quote?.price)}
             </p>
