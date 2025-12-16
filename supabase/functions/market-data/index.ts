@@ -5,11 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Simple in-memory cache for CoinGecko responses (15 second TTL)
-const cryptoCache: Map<string, { data: CryptoQuote; timestamp: number }> = new Map();
+// Simple in-memory cache (15 second TTL)
+const cryptoCache: Map<string, { data: QuoteData; timestamp: number }> = new Map();
+const yahooCache: Map<string, { data: QuoteData; timestamp: number }> = new Map();
 const CACHE_TTL_MS = 15000;
 
-interface CryptoQuote {
+interface QuoteData {
   price: number;
   change: number;
   changePct: number;
@@ -111,7 +112,7 @@ function getMockQuote(symbol: string, assetType: string) {
   };
 }
 
-async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> {
+async function fetchCoinGeckoPrice(symbol: string): Promise<QuoteData | null> {
   const coinId = cryptoIdMap[symbol.toUpperCase()];
   if (!coinId) {
     console.log(`Unknown crypto symbol: ${symbol}, falling back to mock`);
@@ -121,19 +122,16 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> 
   // Check cache first
   const cached = cryptoCache.get(coinId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    console.log(`Using cached data for ${symbol}`);
+    console.log(`Using cached CoinGecko data for ${symbol}`);
     return cached.data;
   }
 
   try {
-    // Use coins/markets endpoint to get extended data including market cap, volume, ath, atl
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinId}&price_change_percentage=24h`;
     console.log(`Fetching CoinGecko data for ${symbol} (${coinId})`);
     
     const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'Accept': 'application/json' },
     });
 
     if (!response.ok) {
@@ -149,23 +147,18 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> 
     }
 
     const coinData = data[0];
-    const price = coinData.current_price;
-    const changePct = coinData.price_change_percentage_24h || 0;
-    const change = coinData.price_change_24h || 0;
-
-    const quote: CryptoQuote = {
-      price: Math.round(price * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePct: Math.round(changePct * 100) / 100,
+    const quote: QuoteData = {
+      price: Math.round(coinData.current_price * 100) / 100,
+      change: Math.round((coinData.price_change_24h || 0) * 100) / 100,
+      changePct: Math.round((coinData.price_change_percentage_24h || 0) * 100) / 100,
       marketCap: coinData.market_cap,
       volume24h: coinData.total_volume,
-      highRange: coinData.ath, // All-time high as high range
-      lowRange: coinData.atl,  // All-time low as low range
+      highRange: coinData.ath,
+      lowRange: coinData.atl,
     };
 
-    // Cache the result
     cryptoCache.set(coinId, { data: quote, timestamp: Date.now() });
-    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}, MCap: ${quote.marketCap}`);
+    console.log(`Cached CoinGecko data for ${symbol}: $${quote.price}`);
 
     return quote;
   } catch (error) {
@@ -174,28 +167,101 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<CryptoQuote | null> 
   }
 }
 
-async function getQuote(symbol: string, assetType: string, useProduction: boolean) {
-  // In production mode, use CoinGecko for crypto
-  if (useProduction && assetType === 'crypto') {
-    const cryptoQuote = await fetchCoinGeckoPrice(symbol);
-    if (cryptoQuote) {
-      return {
-        symbol: symbol.toUpperCase(),
-        price: cryptoQuote.price,
-        change: cryptoQuote.change,
-        changePct: cryptoQuote.changePct,
-        isDelayed: false, // Live data
-        marketCap: cryptoQuote.marketCap,
-        volume24h: cryptoQuote.volume24h,
-        highRange: cryptoQuote.highRange,
-        lowRange: cryptoQuote.lowRange,
-      };
-    }
-    // Fall back to mock if CoinGecko fails
-    console.log(`Falling back to mock for ${symbol}`);
+async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
+  // Check cache first
+  const cached = yahooCache.get(symbol.toUpperCase());
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`Using cached Yahoo data for ${symbol}`);
+    return cached.data;
   }
 
-  // Use mock for stocks/ETFs or as fallback
+  try {
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
+    console.log(`Fetching Yahoo Finance data for ${symbol}`);
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`Yahoo Finance API error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const result = data?.quoteResponse?.result?.[0];
+    
+    if (!result || !result.regularMarketPrice) {
+      console.error(`Invalid Yahoo response for ${symbol}`);
+      return null;
+    }
+
+    const quote: QuoteData = {
+      price: Math.round(result.regularMarketPrice * 100) / 100,
+      change: Math.round((result.regularMarketChange || 0) * 100) / 100,
+      changePct: Math.round((result.regularMarketChangePercent || 0) * 100) / 100,
+      marketCap: result.marketCap,
+      volume24h: result.regularMarketVolume,
+      highRange: result.fiftyTwoWeekHigh,
+      lowRange: result.fiftyTwoWeekLow,
+    };
+
+    yahooCache.set(symbol.toUpperCase(), { data: quote, timestamp: Date.now() });
+    console.log(`Cached Yahoo data for ${symbol}: $${quote.price}`);
+
+    return quote;
+  } catch (error) {
+    console.error(`Failed to fetch Yahoo price for ${symbol}:`, error);
+    return null;
+  }
+}
+
+async function getQuote(symbol: string, assetType: string, useProduction: boolean) {
+  // In production mode, use real data sources
+  if (useProduction) {
+    // Crypto: use CoinGecko (live)
+    if (assetType === 'crypto') {
+      const cryptoQuote = await fetchCoinGeckoPrice(symbol);
+      if (cryptoQuote) {
+        return {
+          symbol: symbol.toUpperCase(),
+          price: cryptoQuote.price,
+          change: cryptoQuote.change,
+          changePct: cryptoQuote.changePct,
+          isDelayed: false,
+          marketCap: cryptoQuote.marketCap,
+          volume24h: cryptoQuote.volume24h,
+          highRange: cryptoQuote.highRange,
+          lowRange: cryptoQuote.lowRange,
+        };
+      }
+      console.log(`Falling back to mock for crypto ${symbol}`);
+    }
+    
+    // Stocks/ETFs: use Yahoo Finance (delayed)
+    if (assetType === 'stock' || assetType === 'etf') {
+      const yahooQuote = await fetchYahooPrice(symbol);
+      if (yahooQuote) {
+        return {
+          symbol: symbol.toUpperCase(),
+          price: yahooQuote.price,
+          change: yahooQuote.change,
+          changePct: yahooQuote.changePct,
+          isDelayed: true,
+          marketCap: yahooQuote.marketCap,
+          volume24h: yahooQuote.volume24h,
+          highRange: yahooQuote.highRange,
+          lowRange: yahooQuote.lowRange,
+        };
+      }
+      console.log(`Falling back to mock for ${assetType} ${symbol}`);
+    }
+  }
+
+  // Use mock as fallback
   return getMockQuote(symbol, assetType);
 }
 
