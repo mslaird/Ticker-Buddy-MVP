@@ -160,7 +160,8 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
   }
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=5d&includePrePost=true`;
+    // Use the quote endpoint which includes change and changePct
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
     
     const response = await fetch(url, {
       headers: {
@@ -170,64 +171,59 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
     });
 
     if (!response.ok) {
+      console.log(`Yahoo API error for ${upperSymbol}: ${response.status}`);
       yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
       return null;
     }
 
     const data = await response.json();
-    const chartResult = data?.chart?.result?.[0];
+    const result = data?.quoteResponse?.result?.[0];
     
-    if (!chartResult) {
+    if (!result) {
+      console.log(`Yahoo no result for ${upperSymbol}`);
       yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
       return null;
     }
 
-    const meta = chartResult.meta;
-    if (!meta || meta.regularMarketPrice === undefined) {
+    // Extract price
+    const price = result.regularMarketPrice;
+    if (price === null || price === undefined || typeof price !== 'number') {
+      console.log(`Yahoo no price for ${upperSymbol}`);
       yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
       return null;
     }
 
-    let price = meta.regularMarketPrice;
-    if (price === null || price === undefined) {
-      price = meta.postMarketPrice ?? meta.preMarketPrice ?? null;
-    }
-    
-    if (price === null || price === undefined) {
-      yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
-      return null;
+    // Extract change - regularMarketChange is the dollar change
+    let change: number | null = null;
+    if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
+      change = result.regularMarketChange;
     }
 
-    // Use regularMarketChange directly from Yahoo
-    const change = meta.regularMarketChange ?? null;
-    
-    // Determine changePct: prefer regularMarketChangePercent, else compute from previousClose
+    // Extract changePct - regularMarketChangePercent is already a percentage (e.g., -1.97 for -1.97%)
     let changePct: number | null = null;
-    
-    if (typeof meta.regularMarketChangePercent === 'number') {
-      // Yahoo returns this as a true percentage (e.g., -1.97 for -1.97%)
-      changePct = meta.regularMarketChangePercent;
-    } else if (change !== null) {
-      // Fallback: compute from regularMarketPreviousClose
-      const prevClose = meta.regularMarketPreviousClose ?? meta.chartPreviousClose ?? meta.previousClose;
-      if (typeof prevClose === 'number' && prevClose > 0) {
-        changePct = (change / prevClose) * 100;
-      }
+    if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
+      changePct = result.regularMarketChangePercent;
+    } else if (change !== null && typeof result.regularMarketPreviousClose === 'number' && result.regularMarketPreviousClose > 0) {
+      // Fallback: compute from previousClose
+      changePct = (change / result.regularMarketPreviousClose) * 100;
     }
+
+    console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
 
     const quote: QuoteData = {
       price: Math.round(price * 100) / 100,
       change: change !== null ? Math.round(change * 100) / 100 : null,
       changePct: changePct !== null ? Math.round(changePct * 100) / 100 : null,
-      marketCap: meta.marketCap,
-      volume24h: meta.regularMarketVolume,
-      highRange: meta.fiftyTwoWeekHigh,
-      lowRange: meta.fiftyTwoWeekLow,
+      marketCap: result.marketCap,
+      volume24h: result.regularMarketVolume,
+      highRange: result.fiftyTwoWeekHigh,
+      lowRange: result.fiftyTwoWeekLow,
     };
 
     yahooCache.set(upperSymbol, { data: quote, timestamp: Date.now() });
     return quote;
   } catch (error) {
+    console.error(`Yahoo fetch error for ${upperSymbol}:`, error);
     yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
     return null;
   }
@@ -250,9 +246,9 @@ async function validateSymbol(symbol: string, assetType: string): Promise<{ vali
     return { valid: false, reason: 'Invalid symbol format' };
   }
   
-  // Check with Yahoo Finance
+  // Check with Yahoo Finance quote API
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=1d`;
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
     
     const response = await fetch(url, {
       headers: {
@@ -266,9 +262,9 @@ async function validateSymbol(symbol: string, assetType: string): Promise<{ vali
     }
 
     const data = await response.json();
-    const chartResult = data?.chart?.result?.[0];
+    const result = data?.quoteResponse?.result?.[0];
     
-    if (!chartResult || !chartResult.meta?.regularMarketPrice) {
+    if (!result || typeof result.regularMarketPrice !== 'number') {
       return { valid: false, reason: 'Symbol not found' };
     }
     
