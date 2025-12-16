@@ -40,7 +40,8 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
 
   const hasData = quote !== undefined && quote.price !== null;
   const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
-  const isPositive = quote && quote.changePct !== null ? quote.changePct >= 0 : true;
+  const isPositive = quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct > 0 : false;
+  const isNegative = quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct < 0 : false;
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return '—';
@@ -93,7 +94,9 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
                 ${formatPrice(quote?.price)}
               </div>
               <div className="flex items-center gap-2 justify-end">
-                <span className={`text-sm font-mono ${isPositive ? 'text-ticker-positive' : 'text-ticker-negative'}`}>
+                <span className={`text-sm font-mono ${
+                  isPositive ? 'text-ticker-positive' : isNegative ? 'text-ticker-negative' : 'text-muted-foreground'
+                }`}>
                   {formatChangePct(quote?.changePct)}
                 </span>
                 {lastUpdated && (
