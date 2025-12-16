@@ -1,13 +1,7 @@
 import { Ticker } from '@/hooks/useTickers';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Quote {
-  symbol: string;
-  price: number;
-  change: number;
-  changePct: number;
-}
+import type { Quote } from '@/hooks/useMarketData';
 
 interface OverlayPreviewProps {
   tickers: Ticker[];
@@ -24,13 +18,25 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
     );
   }
 
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return '—';
+    return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatChangePct = (pct: number | null | undefined) => {
+    if (pct === null || pct === undefined) return '—';
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(2)}%`;
+  };
+
   return (
     <div className="space-y-1.5">
       {tickers.slice(0, 5).map((ticker) => {
         const quote = quotes[ticker.symbol];
-        const hasData = quote !== undefined;
-        const isPositive = quote ? quote.changePct > 0 : false;
-        const isNegative = quote ? quote.changePct < 0 : false;
+        const hasData = quote !== undefined && quote.price !== null;
+        const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+        const isPositive = quote && quote.changePct !== null ? quote.changePct > 0 : false;
+        const isNegative = quote && quote.changePct !== null ? quote.changePct < 0 : false;
         
         return (
           <div
@@ -44,15 +50,17 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
             </div>
             
             <div className="flex items-center gap-2">
-              {isLoading && !hasData ? (
+              {isLoading && !hasData && !isUnavailable ? (
                 <>
                   <Skeleton className="h-4 w-12" />
                   <Skeleton className="h-4 w-14" />
                 </>
+              ) : isUnavailable ? (
+                <span className="font-mono text-xs text-amber-500/80">Unavailable</span>
               ) : hasData ? (
                 <>
                   <span className="font-mono text-sm text-foreground">
-                    ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${formatPrice(quote?.price)}
                   </span>
                   <div className={`flex items-center gap-0.5 text-xs font-mono ${
                     isPositive 
@@ -68,7 +76,7 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
                     ) : (
                       <Minus className="h-3 w-3" />
                     )}
-                    <span>{isPositive ? '+' : ''}{quote.changePct.toFixed(2)}%</span>
+                    <span>{formatChangePct(quote?.changePct)}</span>
                   </div>
                 </>
               ) : (

@@ -9,13 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Quote {
-  symbol: string;
-  price: number;
-  change: number;
-  changePct: number;
-}
+import type { Quote } from '@/hooks/useMarketData';
 
 interface TickerCardProps {
   ticker: Ticker;
@@ -44,8 +38,20 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
     etf: 'bg-emerald-500/10 text-emerald-500',
   };
 
-  const hasData = quote !== undefined;
-  const isPositive = quote ? quote.changePct >= 0 : true;
+  const hasData = quote !== undefined && quote.price !== null;
+  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+  const isPositive = quote && quote.changePct !== null ? quote.changePct >= 0 : true;
+
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return '—';
+    return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatChangePct = (pct: number | null | undefined) => {
+    if (pct === null || pct === undefined) return '—';
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(2)}%`;
+  };
 
   return (
     <div
@@ -71,19 +77,24 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
 
       <div className="flex items-center gap-4">
         <div className="text-right">
-          {isLoading && !hasData ? (
+          {isLoading && !hasData && !isUnavailable ? (
             <div className="space-y-1">
               <Skeleton className="h-5 w-20 ml-auto" />
               <Skeleton className="h-4 w-24 ml-auto" />
             </div>
+          ) : isUnavailable ? (
+            <div className="text-right">
+              <div className="font-mono text-muted-foreground">—</div>
+              <div className="text-xs text-amber-500/80">Quote unavailable</div>
+            </div>
           ) : hasData ? (
             <>
               <div className="font-mono font-semibold text-foreground">
-                ${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${formatPrice(quote?.price)}
               </div>
               <div className="flex items-center gap-2 justify-end">
                 <span className={`text-sm font-mono ${isPositive ? 'text-ticker-positive' : 'text-ticker-negative'}`}>
-                  {isPositive ? '+' : ''}{quote.changePct.toFixed(2)}%
+                  {formatChangePct(quote?.changePct)}
                 </span>
                 {lastUpdated && (
                   <span className="text-xs text-muted-foreground">
