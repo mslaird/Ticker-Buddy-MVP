@@ -71,10 +71,20 @@ function getBasePrice(symbol: string, assetType: string): number {
   }
   
   if (assetType === 'etf') {
+    // ETFs: $50-$500 range, relatively stable
     return 50 + (hash % 450);
   }
   
-  return 10 + (hash % 490);
+  // Stocks: Use symbol-seeded tiers for realistic ranges
+  // Tier 0: Penny/micro-cap ($1-$15)
+  // Tier 1: Small-cap ($10-$50)
+  // Tier 2: Mid-cap ($40-$150)
+  // Tier 3: Large-cap ($100-$400)
+  const tier = hash % 4;
+  if (tier === 0) return 1 + (hash % 1400) / 100;      // $1-$15
+  if (tier === 1) return 10 + (hash % 4000) / 100;    // $10-$50
+  if (tier === 2) return 40 + (hash % 11000) / 100;   // $40-$150
+  return 100 + (hash % 30000) / 100;                   // $100-$400
 }
 
 function getMockQuote(symbol: string, assetType: string) {
@@ -83,11 +93,13 @@ function getMockQuote(symbol: string, assetType: string) {
   const timeSeed = Math.floor(now.getTime() / 60000);
   const combinedSeed = hashCode(symbol) + timeSeed;
   
+  // Intraday movement: ±2% max
   const movementPct = (seededRandom(combinedSeed) - 0.5) * 0.04;
   const price = basePrice * (1 + movementPct);
   
+  // Daily change: cap at ±6% for realistic equity behavior
   const daySeed = hashCode(symbol + now.toDateString());
-  const dayChangePct = (seededRandom(daySeed) - 0.5) * 0.1;
+  const dayChangePct = (seededRandom(daySeed) - 0.5) * 0.12; // ±6% max
   const dayChange = basePrice * dayChangePct;
   
   return {
