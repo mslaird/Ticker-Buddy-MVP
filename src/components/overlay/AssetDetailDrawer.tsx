@@ -116,6 +116,14 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
     return `${sign}${change.toFixed(2)}`;
   };
 
+  const formatLargeNumber = (num: number): string => {
+    if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
+    if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+    if (num >= 1e3) return `${(num / 1e3).toFixed(2)}K`;
+    return num.toFixed(2);
+  };
+
   const getChangeColor = (value: number | undefined) => {
     if (value === undefined || value === 0) return 'text-muted-foreground';
     return value > 0 ? 'text-green-500' : 'text-red-500';
@@ -231,15 +239,27 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
               </p>
             </div>
             <div className="p-4 rounded-xl bg-background/40 border border-border/30 space-y-1">
-              <BlurredMetric label="52-Week High" value={`$${high52w}`} isPro={isPro} />
-              <div className="border-t border-border/30" />
-              <BlurredMetric label="52-Week Low" value={`$${low52w}`} isPro={isPro} />
-              <div className="border-t border-border/30" />
-              <BlurredMetric label="Volume" value={volume} isPro={isPro} />
+              <BlurredMetric 
+                label={ticker.asset_type === 'crypto' ? 'High (Range)' : '52-Week High'} 
+                value={`$${ticker.asset_type === 'crypto' && quote?.highRange ? formatLargeNumber(quote.highRange) : high52w}`} 
+                isPro={isPro} 
+              />
               <div className="border-t border-border/30" />
               <BlurredMetric 
-                label={ticker.asset_type === 'crypto' ? 'Circulating Supply' : 'Market Cap'} 
-                value={marketCap} 
+                label={ticker.asset_type === 'crypto' ? 'Low (Range)' : '52-Week Low'} 
+                value={`$${ticker.asset_type === 'crypto' && quote?.lowRange ? formatLargeNumber(quote.lowRange) : low52w}`} 
+                isPro={isPro} 
+              />
+              <div className="border-t border-border/30" />
+              <BlurredMetric 
+                label={ticker.asset_type === 'crypto' ? '24h Volume' : 'Volume'} 
+                value={ticker.asset_type === 'crypto' && quote?.volume24h ? `$${formatLargeNumber(quote.volume24h)}` : volume} 
+                isPro={isPro} 
+              />
+              <div className="border-t border-border/30" />
+              <BlurredMetric 
+                label="Market Cap" 
+                value={ticker.asset_type === 'crypto' && quote?.marketCap ? `$${formatLargeNumber(quote.marketCap)}` : marketCap} 
                 isPro={isPro} 
               />
             </div>
