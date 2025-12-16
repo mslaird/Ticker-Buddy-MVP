@@ -170,7 +170,6 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
     });
 
     if (!response.ok) {
-      // Cache the null result to avoid hammering the API
       yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
       return null;
     }
@@ -199,14 +198,27 @@ async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
       return null;
     }
 
-    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
-    const change = price - prevClose;
-    const changePct = prevClose !== 0 ? (change / prevClose) * 100 : 0;
+    // Use regularMarketChange directly from Yahoo
+    const change = meta.regularMarketChange ?? null;
+    
+    // Determine changePct: prefer regularMarketChangePercent, else compute from previousClose
+    let changePct: number | null = null;
+    
+    if (typeof meta.regularMarketChangePercent === 'number') {
+      // Yahoo returns this as a true percentage (e.g., -1.97 for -1.97%)
+      changePct = meta.regularMarketChangePercent;
+    } else if (change !== null) {
+      // Fallback: compute from regularMarketPreviousClose
+      const prevClose = meta.regularMarketPreviousClose ?? meta.chartPreviousClose ?? meta.previousClose;
+      if (typeof prevClose === 'number' && prevClose > 0) {
+        changePct = (change / prevClose) * 100;
+      }
+    }
 
     const quote: QuoteData = {
       price: Math.round(price * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePct: Math.round(changePct * 100) / 100,
+      change: change !== null ? Math.round(change * 100) / 100 : 0,
+      changePct: changePct !== null ? Math.round(changePct * 100) / 100 : 0,
       marketCap: meta.marketCap,
       volume24h: meta.regularMarketVolume,
       highRange: meta.fiftyTwoWeekHigh,
