@@ -98,7 +98,8 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
   
   if (!ticker) return null;
 
-  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
+  const isSourceUnavailable = quote?.quoteStatus === 'source_unavailable';
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === undefined || price === null) return '—';
@@ -180,7 +181,9 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
           {/* Unavailable Warning */}
           {isUnavailable && (
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm">
-              Quote data unavailable for this symbol. It may be an invalid ticker or temporarily unavailable.
+              {isSourceUnavailable 
+                ? 'Data source temporarily unavailable. Prices will update when the connection is restored.'
+                : 'Quote data unavailable for this symbol. It may be an invalid ticker or temporarily unavailable.'}
             </div>
           )}
 

@@ -34,7 +34,8 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
       {tickers.slice(0, 5).map((ticker) => {
         const quote = quotes[ticker.symbol];
         const hasData = quote !== undefined && quote.price !== null;
-        const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+        const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
+        const isSourceUnavailable = quote?.quoteStatus === 'source_unavailable';
         const isPositive = quote && quote.changePct !== null ? quote.changePct > 0 : false;
         const isNegative = quote && quote.changePct !== null ? quote.changePct < 0 : false;
         
@@ -56,7 +57,9 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
                   <Skeleton className="h-4 w-14" />
                 </>
               ) : isUnavailable ? (
-                <span className="font-mono text-xs text-amber-500/80">Unavailable</span>
+                <span className="font-mono text-xs text-amber-500/80">
+                  {isSourceUnavailable ? 'Source down' : 'Unavailable'}
+                </span>
               ) : hasData ? (
                 <>
                   <span className="font-mono text-sm text-foreground">

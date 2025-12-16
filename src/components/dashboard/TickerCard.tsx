@@ -39,7 +39,8 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
   };
 
   const hasData = quote !== undefined && quote.price !== null;
-  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.price === null;
+  const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
+  const isSourceUnavailable = quote?.quoteStatus === 'source_unavailable';
   const isPositive = quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct > 0 : false;
   const isNegative = quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct < 0 : false;
 
@@ -86,7 +87,9 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
           ) : isUnavailable ? (
             <div className="text-right">
               <div className="font-mono text-muted-foreground">—</div>
-              <div className="text-xs text-amber-500/80">Quote unavailable</div>
+              <div className="text-xs text-amber-500/80">
+                {isSourceUnavailable ? 'Data source unavailable' : 'Quote unavailable'}
+              </div>
             </div>
           ) : hasData ? (
             <>

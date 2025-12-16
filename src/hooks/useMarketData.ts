@@ -8,7 +8,7 @@ export interface Quote {
   change: number | null;
   changePct: number | null;
   isDelayed?: boolean;
-  quoteStatus?: 'available' | 'unavailable';
+  quoteStatus?: 'available' | 'unavailable' | 'source_unavailable';
   marketCap?: number;
   volume24h?: number;
   highRange?: number;
