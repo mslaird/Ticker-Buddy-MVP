@@ -74,7 +74,11 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
   };
 
   const isQuoteUnavailable = (quote: Quote | undefined) => {
-    return quote?.quoteStatus === 'unavailable' || quote?.price === null;
+    return quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
+  };
+
+  const isSourceUnavailable = (quote: Quote | undefined) => {
+    return quote?.quoteStatus === 'source_unavailable';
   };
 
   return (
@@ -125,7 +129,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                             </span>
                             {!isCompact && (
                               <span className="text-[10px] text-amber-500/80">
-                                Quote unavailable
+                                {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
                               </span>
                             )}
                           </>

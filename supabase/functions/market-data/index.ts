@@ -44,6 +44,18 @@ const cryptoIdMap: Record<string, string> = {
   'SHIB': 'shiba-inu',
 };
 
+// Browser-like headers for Yahoo requests
+const yahooHeaders = {
+  'Accept': 'application/json,text/plain,*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-site',
+};
+
 // Generate stable mock prices using symbol as seed
 function hashCode(str: string): number {
   let hash = 0;
@@ -151,82 +163,119 @@ async function fetchCoinGeckoPrice(symbol: string): Promise<QuoteData | null> {
   }
 }
 
-async function fetchYahooPrice(symbol: string): Promise<QuoteData | null> {
-  const upperSymbol = symbol.toUpperCase();
+// Sleep helper for retry backoff
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Fetch with retry and fallback endpoints
+async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; networkError: boolean }> {
+  const upperSymbol = symbol.toUpperCase().trim();
+  const endpoints = [
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
+  ];
+  
+  const retryDelays = [0, 300, 800]; // Initial, first retry, second retry
+  
+  for (const endpoint of endpoints) {
+    for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        await sleep(retryDelays[attempt]);
+      }
+      
+      try {
+        console.log(`Yahoo fetch attempt ${attempt + 1} for ${upperSymbol}: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          headers: yahooHeaders,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const result = data?.quoteResponse?.result;
+          
+          // Check if we got valid results
+          if (result && Array.isArray(result) && result.length > 0) {
+            console.log(`Yahoo success for ${upperSymbol}: got ${result.length} results`);
+            return { data: result[0], networkError: false };
+          }
+          
+          // Empty result array - symbol not found
+          console.log(`Yahoo returned empty result for ${upperSymbol}`);
+          return { data: null, networkError: false };
+        }
+        
+        console.log(`Yahoo HTTP error ${response.status} for ${upperSymbol}`);
+        
+        // If rate limited, wait longer before retry
+        if (response.status === 429) {
+          await sleep(1000);
+        }
+      } catch (error) {
+        console.error(`Yahoo network error for ${upperSymbol}:`, error);
+        // Continue to retry/fallback
+      }
+    }
+  }
+  
+  // All attempts failed
+  console.log(`Yahoo all attempts failed for ${upperSymbol}`);
+  return { data: null, networkError: true };
+}
+
+async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | null; networkError: boolean }> {
+  const upperSymbol = symbol.toUpperCase().trim();
   
   const cached = yahooCache.get(upperSymbol);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.data;
+    return { quote: cached.data, networkError: false };
   }
 
-  try {
-    // Use the quote endpoint which includes change and changePct
-    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-
-    if (!response.ok) {
-      console.log(`Yahoo API error for ${upperSymbol}: ${response.status}`);
-      yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
-      return null;
-    }
-
-    const data = await response.json();
-    const result = data?.quoteResponse?.result?.[0];
-    
-    if (!result) {
-      console.log(`Yahoo no result for ${upperSymbol}`);
-      yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
-      return null;
-    }
-
-    // Extract price
-    const price = result.regularMarketPrice;
-    if (price === null || price === undefined || typeof price !== 'number') {
-      console.log(`Yahoo no price for ${upperSymbol}`);
-      yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
-      return null;
-    }
-
-    // Extract change - regularMarketChange is the dollar change
-    let change: number | null = null;
-    if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
-      change = result.regularMarketChange;
-    }
-
-    // Extract changePct - regularMarketChangePercent is already a percentage (e.g., -1.97 for -1.97%)
-    let changePct: number | null = null;
-    if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
-      changePct = result.regularMarketChangePercent;
-    } else if (change !== null && typeof result.regularMarketPreviousClose === 'number' && result.regularMarketPreviousClose > 0) {
-      // Fallback: compute from previousClose
-      changePct = (change / result.regularMarketPreviousClose) * 100;
-    }
-
-    console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
-
-    const quote: QuoteData = {
-      price: Math.round(price * 100) / 100,
-      change: change !== null ? Math.round(change * 100) / 100 : null,
-      changePct: changePct !== null ? Math.round(changePct * 100) / 100 : null,
-      marketCap: result.marketCap,
-      volume24h: result.regularMarketVolume,
-      highRange: result.fiftyTwoWeekHigh,
-      lowRange: result.fiftyTwoWeekLow,
-    };
-
-    yahooCache.set(upperSymbol, { data: quote, timestamp: Date.now() });
-    return quote;
-  } catch (error) {
-    console.error(`Yahoo fetch error for ${upperSymbol}:`, error);
+  const { data: result, networkError } = await fetchYahooWithRetry(upperSymbol);
+  
+  if (!result) {
     yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
-    return null;
+    return { quote: null, networkError };
   }
+
+  // Extract price
+  const price = result.regularMarketPrice;
+  if (price === null || price === undefined || typeof price !== 'number') {
+    console.log(`Yahoo no valid price for ${upperSymbol}`);
+    yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
+    return { quote: null, networkError: false };
+  }
+
+  // Extract change - regularMarketChange is the dollar change
+  let change: number | null = null;
+  if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
+    change = result.regularMarketChange;
+  }
+
+  // Extract changePct - regularMarketChangePercent is already a percentage (e.g., -1.97 for -1.97%)
+  let changePct: number | null = null;
+  if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
+    changePct = result.regularMarketChangePercent;
+  } else if (change !== null && typeof result.regularMarketPreviousClose === 'number' && result.regularMarketPreviousClose > 0) {
+    // Fallback: compute from previousClose
+    changePct = (change / result.regularMarketPreviousClose) * 100;
+  }
+
+  console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
+
+  const quote: QuoteData = {
+    price: Math.round(price * 100) / 100,
+    change: change !== null ? Math.round(change * 100) / 100 : null,
+    changePct: changePct !== null ? Math.round(changePct * 100) / 100 : null,
+    marketCap: result.marketCap,
+    volume24h: result.regularMarketVolume,
+    highRange: result.fiftyTwoWeekHigh,
+    lowRange: result.fiftyTwoWeekLow,
+  };
+
+  yahooCache.set(upperSymbol, { data: quote, timestamp: Date.now() });
+  return { quote, networkError: false };
 }
 
 // Validate symbol exists via Yahoo Finance
@@ -238,41 +287,27 @@ async function validateSymbol(symbol: string, assetType: string): Promise<{ vali
     if (cryptoIdMap[upperSymbol]) {
       return { valid: true };
     }
-    return { valid: false, reason: 'Symbol not found' };
+    return { valid: false, reason: 'Crypto symbol not supported' };
   }
   
   // For stocks/ETFs, validate format first (1-5 letters)
   if (!/^[A-Z]{1,5}$/.test(upperSymbol)) {
-    return { valid: false, reason: 'Invalid symbol format' };
+    return { valid: false, reason: 'Symbol must be 1-5 letters (A-Z)' };
   }
   
-  // Check with Yahoo Finance quote API
-  try {
-    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-
-    if (!response.ok) {
-      return { valid: false, reason: 'Symbol not found' };
-    }
-
-    const data = await response.json();
-    const result = data?.quoteResponse?.result?.[0];
-    
-    if (!result || typeof result.regularMarketPrice !== 'number') {
-      return { valid: false, reason: 'Symbol not found' };
-    }
-    
-    return { valid: true };
-  } catch (error) {
-    // If Yahoo is down, allow the symbol (will show as unavailable later)
-    return { valid: true };
+  // Check with Yahoo Finance
+  const { data: result, networkError } = await fetchYahooWithRetry(upperSymbol);
+  
+  if (networkError) {
+    // Network/API issue - allow the symbol but warn user
+    return { valid: true, reason: 'Could not verify symbol - will check on refresh' };
   }
+  
+  if (!result || typeof result.regularMarketPrice !== 'number') {
+    return { valid: false, reason: 'Symbol not found' };
+  }
+  
+  return { valid: true };
 }
 
 async function getQuote(symbol: string, assetType: string, useProduction: boolean) {
@@ -310,7 +345,7 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
     
     // Stocks/ETFs: use Yahoo Finance (delayed) - NO mock fallback
     if (assetType === 'stock' || assetType === 'etf') {
-      const yahooQuote = await fetchYahooPrice(symbol);
+      const { quote: yahooQuote, networkError } = await fetchYahooPrice(symbol);
       if (yahooQuote) {
         return {
           symbol: upperSymbol,
@@ -325,14 +360,14 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
           lowRange: yahooQuote.lowRange,
         };
       }
-      // Yahoo failed or symbol not found - return unavailable (NO mock fallback)
+      // Yahoo failed or symbol not found - return unavailable with source info
       return {
         symbol: upperSymbol,
         price: null,
         change: null,
         changePct: null,
         isDelayed: true,
-        quoteStatus: 'unavailable',
+        quoteStatus: networkError ? 'source_unavailable' : 'unavailable',
       };
     }
   }

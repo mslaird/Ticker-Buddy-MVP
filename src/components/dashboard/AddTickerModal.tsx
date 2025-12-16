@@ -102,16 +102,26 @@ export function AddTickerModal({
         });
         
         if (validateError) {
-          // If validation fails due to network, allow submission
+          // If validation fails due to network, allow submission with warning
           console.warn('Symbol validation failed:', validateError);
+          setError('Quote source temporarily unavailable — symbol will be verified on next refresh');
+          // Allow to continue after brief delay
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          setError('');
         } else if (data && !data.valid) {
           setError(data.reason || 'Symbol not found');
           setLoading(false);
           return;
+        } else if (data?.reason) {
+          // Valid but with warning (e.g., couldn't verify)
+          console.warn('Symbol validation warning:', data.reason);
         }
       } catch (err) {
-        // Network error - allow submission
+        // Network error - show warning but allow submission
         console.warn('Symbol validation network error:', err);
+        setError('Quote source temporarily unavailable — trying anyway...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setError('');
       }
     }
 
@@ -222,7 +232,10 @@ export function AddTickerModal({
               className="flex-1"
             >
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Checking...
+                </>
               ) : isEditing ? (
                 'Save Changes'
               ) : (
