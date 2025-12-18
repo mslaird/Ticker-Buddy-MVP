@@ -290,6 +290,23 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
     changePct = (change / result.regularMarketPreviousClose) * 100;
   }
 
+  // Sign consistency check: if change and changePct have different signs, recompute changePct
+  if (change !== null && changePct !== null) {
+    const changeSign = change >= 0 ? 1 : -1;
+    const pctSign = changePct >= 0 ? 1 : -1;
+    
+    if (changeSign !== pctSign) {
+      console.log(`Yahoo sign mismatch for ${upperSymbol}: change=${change}, changePct=${changePct} - recomputing`);
+      const prevClose = result.regularMarketPreviousClose;
+      if (typeof prevClose === 'number' && prevClose > 0) {
+        changePct = (change / prevClose) * 100;
+      } else if (price > 0) {
+        changePct = (change / price) * 100;
+      }
+      console.log(`Yahoo corrected changePct for ${upperSymbol}: ${changePct}`);
+    }
+  }
+
   console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
 
   const quote: QuoteData = {
