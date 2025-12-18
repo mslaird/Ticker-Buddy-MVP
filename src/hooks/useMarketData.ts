@@ -13,6 +13,11 @@ export interface Quote {
   volume24h?: number;
   highRange?: number;
   lowRange?: number;
+  // Debug fields for equities
+  debugBaseline?: number | null;
+  debugOpen?: number | null;
+  debugPrevClose?: number | null;
+  debugMarketState?: string;
 }
 
 interface MarketDataState {
