@@ -1,6 +1,12 @@
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { AssetDetailDrawer } from './AssetDetailDrawer';
 import type { Quote } from '@/hooks/useMarketData';
 
@@ -148,9 +154,28 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                               </span>
                             </div>
                             {!isCompact && (
-                              <span className="text-[10px] text-muted-foreground/70">
-                                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-muted-foreground/70">
+                                  {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                                </span>
+                                <TooltipProvider delayDuration={0}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button 
+                                        className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Info className="h-2.5 w-2.5" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-[180px] text-[10px]">
+                                      {ticker.asset_type === 'crypto' 
+                                        ? 'Live crypto quote.' 
+                                        : 'Delayed quote. % change from Yahoo Finance data.'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
                             )}
                           </>
                         )}
