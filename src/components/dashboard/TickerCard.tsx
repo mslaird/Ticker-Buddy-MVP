@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Ticker } from '@/hooks/useTickers';
 import { Button } from '@/components/ui/button';
-import { MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, Info } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { Quote } from '@/hooks/useMarketData';
 
 interface TickerCardProps {
@@ -45,6 +51,8 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
     (quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct > 0 : false);
   const isNegative = quote && quote.change !== null && !Number.isNaN(quote.change) ? quote.change < 0 : 
     (quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct < 0 : false);
+
+  const isCrypto = ticker.asset_type === 'crypto';
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return '—';
@@ -104,6 +112,18 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
                 }`}>
                   {formatChangePct(quote?.changePct)}
                 </span>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                        <Info className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="max-w-[200px] text-xs">
+                      {isCrypto ? 'Live crypto quote.' : 'Delayed quote. % change from Yahoo Finance data.'}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {lastUpdated && (
                   <span className="text-xs text-muted-foreground">
                     {getTimeAgo(lastUpdated)}
