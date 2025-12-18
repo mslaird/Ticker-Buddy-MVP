@@ -41,10 +41,50 @@ const positionClasses: Record<OverlaySettings['position'], string> = {
   'bottom-right': 'bottom-4 right-4',
 };
 
-const sizeClasses: Record<OverlaySettings['size'], { container: string; text: string; textCompact: string; padding: string; paddingCompact: string }> = {
-  small: { container: 'w-48', text: 'text-xs', textCompact: 'text-[10px]', padding: 'p-2', paddingCompact: 'p-1.5' },
-  medium: { container: 'w-64', text: 'text-sm', textCompact: 'text-xs', padding: 'p-3', paddingCompact: 'p-2' },
-  large: { container: 'w-80', text: 'text-base', textCompact: 'text-sm', padding: 'p-4', paddingCompact: 'p-2.5' },
+const sizeClasses: Record<OverlaySettings['size'], { 
+  container: string; 
+  text: string; 
+  textCompact: string; 
+  rowPadding: string; 
+  rowPaddingCompact: string;
+  containerPadding: string;
+  containerPaddingCompact: string;
+  rowGap: string;
+  rowGapCompact: string;
+}> = {
+  small: { 
+    container: 'w-48', 
+    text: 'text-xs', 
+    textCompact: 'text-[10px]', 
+    rowPadding: 'px-2 py-2', 
+    rowPaddingCompact: 'px-1.5 py-0.5',
+    containerPadding: 'p-3',
+    containerPaddingCompact: 'p-2',
+    rowGap: 'gap-2',
+    rowGapCompact: 'gap-0.5',
+  },
+  medium: { 
+    container: 'w-64', 
+    text: 'text-sm', 
+    textCompact: 'text-xs', 
+    rowPadding: 'px-2.5 py-2.5', 
+    rowPaddingCompact: 'px-2 py-1',
+    containerPadding: 'p-4',
+    containerPaddingCompact: 'p-2.5',
+    rowGap: 'gap-2.5',
+    rowGapCompact: 'gap-1',
+  },
+  large: { 
+    container: 'w-80', 
+    text: 'text-base', 
+    textCompact: 'text-sm', 
+    rowPadding: 'px-3 py-3', 
+    rowPaddingCompact: 'px-2.5 py-1.5',
+    containerPadding: 'p-5',
+    containerPaddingCompact: 'p-3',
+    rowGap: 'gap-3',
+    rowGapCompact: 'gap-1.5',
+  },
 };
 
 export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = false }: OverlayWidgetProps) {
@@ -55,7 +95,9 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
   const sizeConfig = sizeClasses[settings.size];
   const isCompact = settings.compactMode;
   const textSize = isCompact ? sizeConfig.textCompact : sizeConfig.text;
-  const paddingSize = isCompact ? sizeConfig.paddingCompact : sizeConfig.padding;
+  const containerPadding = isCompact ? sizeConfig.containerPaddingCompact : sizeConfig.containerPadding;
+  const rowPadding = isCompact ? sizeConfig.rowPaddingCompact : sizeConfig.rowPadding;
+  const rowGap = isCompact ? sizeConfig.rowGapCompact : sizeConfig.rowGap;
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === undefined || price === null) return '—';
@@ -97,15 +139,15 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
         style={{ opacity: settings.opacity / 100 }}
       >
         <div className="glass-card rounded-xl shadow-glow border border-border/50 backdrop-blur-xl overflow-hidden">
-          <div className={paddingSize}>
-            <div className={`flex items-center gap-2 ${isCompact ? 'mb-1 pb-1' : 'mb-2 pb-2'} border-b border-border/50`}>
+          <div className={containerPadding}>
+            <div className={`flex items-center gap-2 ${isCompact ? 'mb-1.5 pb-1.5' : 'mb-3 pb-2'} border-b border-border/50`}>
               <div className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-primary animate-pulse`} />
               <span className={`${textSize} text-muted-foreground font-medium tracking-wide`}>
                 TICKER BUDDY
               </span>
             </div>
             
-            <div className={isCompact ? 'space-y-0.5' : 'space-y-1.5'}>
+            <div className={`flex flex-col ${rowGap}`}>
               {tickers.length === 0 ? (
                 <p className={`${textSize} text-muted-foreground text-center py-2`}>
                   No tickers added
@@ -120,15 +162,15 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                     <button
                       key={ticker.id}
                       onClick={() => setSelectedTicker(ticker)}
-                      className={`w-full flex items-center justify-between ${isCompact ? 'px-1.5 py-1' : paddingSize} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                      className={`w-full flex items-center justify-between ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`${textSize} font-mono font-semibold text-foreground`}>
+                        <span className={`${textSize} font-mono font-semibold text-foreground leading-relaxed`}>
                           {ticker.symbol}
                         </span>
                       </div>
                       
-                      <div className={`flex flex-col items-end ${isCompact ? 'gap-0' : 'gap-0.5'}`}>
+                      <div className={`flex flex-col items-end ${isCompact ? 'gap-0' : 'gap-1'}`}>
                         {isLoading && !hasData && !unavailable ? (
                           <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
                         ) : unavailable ? (
