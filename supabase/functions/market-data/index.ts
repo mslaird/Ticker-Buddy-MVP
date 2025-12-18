@@ -204,25 +204,18 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
             const meta = chart.meta;
             const price = meta.regularMarketPrice;
             const previousClose = meta.chartPreviousClose || meta.previousClose;
+            const regularMarketOpen = meta.regularMarketOpen;
+            const marketState = meta.marketState;
             
             if (typeof price === 'number') {
-              // Calculate change from previous close
-              let change: number | null = null;
-              let changePct: number | null = null;
-              
-              if (typeof previousClose === 'number' && previousClose > 0) {
-                change = price - previousClose;
-                changePct = (change / previousClose) * 100;
-              }
-              
-              console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, prevClose=${previousClose}, change=${change?.toFixed(2)}, pct=${changePct?.toFixed(2)}`);
+              console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, open=${regularMarketOpen}, prevClose=${previousClose}, marketState=${marketState}`);
               
               return { 
                 data: {
                   regularMarketPrice: price,
-                  regularMarketChange: change,
-                  regularMarketChangePercent: changePct,
+                  regularMarketOpen: regularMarketOpen,
                   regularMarketPreviousClose: previousClose,
+                  marketState: marketState,
                   fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
                   fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
                   regularMarketVolume: meta.regularMarketVolume,
@@ -275,27 +268,29 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
     return { quote: null, networkError: false };
   }
 
-  // Extract previousClose
+  // Extract open, previousClose, and marketState
+  const open = result.regularMarketOpen;
   const prevClose = result.regularMarketPreviousClose;
+  const marketState = result.marketState;
   
-  // Compute change and changePct from price and previousClose (do NOT trust regularMarketChangePercent)
+  // Baseline selection: use open during REGULAR market hours, prevClose otherwise
+  let baseline: number | null = null;
+  if (marketState === 'REGULAR' && typeof open === 'number' && open > 0) {
+    baseline = open;
+  } else if (typeof prevClose === 'number' && prevClose > 0) {
+    baseline = prevClose;
+  }
+  
+  // Compute change and changePct from baseline
   let change: number | null = null;
   let changePct: number | null = null;
   
-  if (typeof prevClose === 'number' && prevClose > 0) {
-    // Primary: compute from price and previousClose
-    change = price - prevClose;
-    changePct = (change / prevClose) * 100;
-    console.log(`Yahoo computed for ${upperSymbol}: price=${price}, prevClose=${prevClose}, change=${change.toFixed(2)}, changePct=${changePct.toFixed(2)}%`);
+  if (baseline !== null) {
+    change = price - baseline;
+    changePct = (change / baseline) * 100;
+    console.log(`Yahoo computed for ${upperSymbol}: price=${price}, baseline=${baseline} (${marketState === 'REGULAR' ? 'open' : 'prevClose'}), change=${change.toFixed(2)}, changePct=${changePct.toFixed(2)}%`);
   } else {
-    // Fallback: use Yahoo fields if previousClose unavailable
-    if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
-      change = result.regularMarketChange;
-    }
-    if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
-      changePct = result.regularMarketChangePercent;
-    }
-    console.log(`Yahoo fallback for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
+    console.log(`Yahoo no baseline for ${upperSymbol}: price=${price}, open=${open}, prevClose=${prevClose}, marketState=${marketState}`);
   }
 
   const quote: QuoteData = {
