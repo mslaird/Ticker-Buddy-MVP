@@ -168,16 +168,16 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                       className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
                       {/* 2-column layout: ticker left, price right */}
-                      <div className="flex items-start justify-between gap-3 w-full">
-                        {/* Left column: ticker + badge */}
-                        <div className="flex-shrink-0 max-w-[45%]">
+                      <div className="grid grid-cols-[1fr_auto] items-start w-full">
+                        {/* Left column: ticker + badge - truncates if needed */}
+                        <div className="min-w-0 overflow-hidden">
                           <span className={`${textSize} font-mono font-semibold text-foreground leading-tight block truncate`}>
                             {ticker.symbol}
                           </span>
                         </div>
                         
-                        {/* Right column: price + % */}
-                        <div className="flex-1 flex flex-col items-end min-w-0">
+                        {/* Right column: price + % - never shrinks */}
+                        <div className="flex-shrink-0 flex flex-col items-end pl-3">
                           {isLoading && !hasData && !unavailable ? (
                             <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
                           ) : unavailable ? (
