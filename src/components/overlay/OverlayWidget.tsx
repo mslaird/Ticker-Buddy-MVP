@@ -52,11 +52,10 @@ const sizeClasses: Record<OverlaySettings['size'], {
   rowGap: string;
   rowGapCompact: string;
   metaMargin: string;
-  tickerWidth: string;
-  pctWidth: string;
+  gridCols: string;
 }> = {
   small: { 
-    container: 'w-52', 
+    container: 'w-56', 
     text: 'text-xs', 
     textCompact: 'text-[10px]', 
     rowPadding: 'px-2 py-1.5', 
@@ -66,8 +65,7 @@ const sizeClasses: Record<OverlaySettings['size'], {
     rowGap: 'gap-1.5',
     rowGapCompact: 'gap-0.5',
     metaMargin: 'mt-1.5',
-    tickerWidth: 'w-12',
-    pctWidth: 'w-16',
+    gridCols: '52px 1fr 80px',
   },
   medium: { 
     container: 'w-64', 
@@ -80,8 +78,7 @@ const sizeClasses: Record<OverlaySettings['size'], {
     rowGap: 'gap-2',
     rowGapCompact: 'gap-1',
     metaMargin: 'mt-2',
-    tickerWidth: 'w-14',
-    pctWidth: 'w-20',
+    gridCols: '56px 1fr 88px',
   },
   large: { 
     container: 'w-80', 
@@ -94,8 +91,7 @@ const sizeClasses: Record<OverlaySettings['size'], {
     rowGap: 'gap-2.5',
     rowGapCompact: 'gap-1.5',
     metaMargin: 'mt-2.5',
-    tickerWidth: 'w-14',
-    pctWidth: 'w-24',
+    gridCols: '60px 1fr 96px',
   },
 };
 
@@ -173,80 +169,100 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   // Metadata font size based on size
                   const metaSize = settings.size === 'small' ? 'text-[9px]' : settings.size === 'medium' ? 'text-[10px]' : 'text-[11px]';
                   
-                  return (
-                    <button
-                      key={ticker.id}
-                      onClick={() => setSelectedTicker(ticker)}
-                      className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
-                    >
-                      {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
-                      <div className="grid items-center w-full" style={{ gridTemplateColumns: `${settings.size === 'small' ? '48px' : '56px'} 1fr auto` }}>
-                        {/* Column 1: Ticker symbol - fixed width, no truncation */}
-                        <span className={`${textSize} font-mono font-semibold text-foreground leading-tight`}>
-                          {ticker.symbol}
-                        </span>
-                        
-                        {/* Column 2: Price - flexible, right-aligned */}
-                        <div className="flex items-center justify-end px-2">
-                          {isLoading && !hasData && !unavailable ? (
-                            <Skeleton className={isCompact ? 'h-3 w-12' : 'h-4 w-14'} />
-                          ) : unavailable ? (
-                            <span className={`${textSize} font-mono text-muted-foreground`}>—</span>
-                          ) : (
-                            <span className={`${textSize} font-mono text-foreground`}>
-                              ${formatPrice(quote?.price)}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Column 3: Percentage - fixed width, right-aligned */}
-                        <div className={`${sizeConfig.pctWidth} flex items-center justify-end`}>
-                          {!isLoading || hasData ? (
-                            !unavailable && hasData ? (
-                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
-                                {getChangeIcon(quote)}
-                                {formatPercent(quote?.changePct)}
+                    return (
+                      <button
+                        key={ticker.id}
+                        onClick={() => setSelectedTicker(ticker)}
+                        className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                      >
+                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
+                        <div 
+                          className="grid items-center w-full gap-0" 
+                          style={{ gridTemplateColumns: sizeConfig.gridCols }}
+                        >
+                          {/* Column 1: Ticker symbol - fixed width */}
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span 
+                                  className={`${textSize} font-mono font-semibold text-foreground leading-tight truncate`}
+                                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                                >
+                                  {ticker.symbol}
+                                </span>
+                              </TooltipTrigger>
+                              {ticker.symbol.length > 6 && (
+                                <TooltipContent side="top" className="text-xs">
+                                  {ticker.symbol}
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </TooltipProvider>
+                          
+                          {/* Column 2: Price - flexible, right-aligned */}
+                          <div className="flex items-center justify-end">
+                            {isLoading && !hasData && !unavailable ? (
+                              <Skeleton className={isCompact ? 'h-3 w-12' : 'h-4 w-14'} />
+                            ) : unavailable ? (
+                              <span className={`${textSize} font-mono text-muted-foreground`} style={{ fontVariantNumeric: 'tabular-nums' }}>—</span>
+                            ) : (
+                              <span className={`${textSize} font-mono text-foreground`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                ${formatPrice(quote?.price)}
                               </span>
-                            ) : null
-                          ) : null}
+                            )}
+                          </div>
+                          
+                          {/* Column 3: Percentage - fixed width, right-aligned */}
+                          <div className="flex items-center justify-end pl-2">
+                            {!isLoading || hasData ? (
+                              !unavailable && hasData ? (
+                                <span 
+                                  className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}
+                                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                                >
+                                  {getChangeIcon(quote)}
+                                  {formatPercent(quote?.changePct)}
+                                </span>
+                              ) : null
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Metadata line: own row below, right-aligned, only when not compact */}
-                      {!isCompact && (
-                        <div className={`flex items-center justify-end gap-1 w-full ${sizeConfig.metaMargin}`}>
-                          {unavailable ? (
-                            <span className={`${metaSize} text-amber-500/80`}>
-                              {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
-                            </span>
-                          ) : hasData ? (
-                            <>
-                              <span className={`${metaSize} text-muted-foreground/70`}>
-                                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                        
+                        {/* Metadata line: own row below, right-aligned, only when not compact */}
+                        {!isCompact && (
+                          <div className={`flex items-center justify-end gap-1 w-full ${sizeConfig.metaMargin}`}>
+                            {unavailable ? (
+                              <span className={`${metaSize} text-amber-500/80`}>
+                                {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
                               </span>
-                              <TooltipProvider delayDuration={0}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span 
-                                      className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Info className={settings.size === 'small' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="max-w-[180px] text-[10px]">
-                                    {ticker.asset_type === 'crypto' 
-                                      ? 'Live crypto quote.' 
-                                      : 'Delayed quote. % change from Yahoo Finance data.'}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </>
-                          ) : null}
-                        </div>
-                      )}
-                    </button>
-                  );
+                            ) : hasData ? (
+                              <>
+                                <span className={`${metaSize} text-muted-foreground/70`}>
+                                  {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                                </span>
+                                <TooltipProvider delayDuration={0}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span 
+                                        className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Info className={settings.size === 'small' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-[180px] text-[10px]">
+                                      {ticker.asset_type === 'crypto' 
+                                        ? 'Live crypto quote.' 
+                                        : 'Delayed quote. % change from Yahoo Finance data.'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </>
+                            ) : null}
+                          </div>
+                        )}
+                      </button>
+                    );
                 })
               )}
             </div>
