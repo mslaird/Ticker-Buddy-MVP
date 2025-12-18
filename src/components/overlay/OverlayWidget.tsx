@@ -63,15 +63,20 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
     return `${sign}${pct.toFixed(2)}%`;
   };
 
-  const getChangeColor = (value: number | null | undefined) => {
+  const getChangeColor = (quote: Quote | undefined) => {
+    // Use change sign if available, else changePct
+    const value = quote?.change ?? quote?.changePct;
     if (value === undefined || value === null || value === 0) return 'text-muted-foreground';
     return value > 0 ? 'text-green-500' : 'text-red-500';
   };
 
-  const getChangeIcon = (value: number | null | undefined) => {
+  const getChangeIcon = (quote: Quote | undefined) => {
+    const value = quote?.change ?? quote?.changePct;
     if (value === undefined || value === null || value === 0) return <Minus className="h-3 w-3" />;
     return value > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />;
   };
+
+  const isDev = import.meta.env.DEV;
 
   const isQuoteUnavailable = (quote: Quote | undefined) => {
     return quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
@@ -106,6 +111,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   const quote = quotes[ticker.symbol];
                   const hasData = quote && quote.price !== undefined && quote.price !== null;
                   const unavailable = isQuoteUnavailable(quote);
+                  const isEquity = ticker.asset_type === 'stock' || ticker.asset_type === 'etf';
                   
                   return (
                     <button
@@ -139,14 +145,19 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                               <span className={`${textSize} font-mono text-foreground`}>
                                 ${formatPrice(quote?.price)}
                               </span>
-                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote?.changePct)}`}>
-                                {getChangeIcon(quote?.changePct)}
+                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
+                                {getChangeIcon(quote)}
                                 {formatPercent(quote?.changePct)}
                               </span>
                             </div>
                             {!isCompact && (
                               <span className="text-[10px] text-muted-foreground/70">
                                 {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                              </span>
+                            )}
+                            {isDev && isEquity && quote && !isCompact && (
+                              <span className="text-[8px] text-muted-foreground/50 font-mono">
+                                state={quote.debugMarketState || '?'} base={quote.debugBaseline ?? '?'}
                               </span>
                             )}
                           </>

@@ -18,6 +18,11 @@ interface QuoteData {
   volume24h?: number;
   highRange?: number;
   lowRange?: number;
+  // Debug fields for equities
+  debugBaseline?: number | null;
+  debugOpen?: number | null;
+  debugPrevClose?: number | null;
+  debugMarketState?: string;
 }
 
 // Common crypto symbol to CoinGecko ID mapping
@@ -204,8 +209,20 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
             const meta = chart.meta;
             const price = meta.regularMarketPrice;
             const previousClose = meta.chartPreviousClose || meta.previousClose;
-            const regularMarketOpen = meta.regularMarketOpen;
-            const marketState = meta.marketState;
+            const marketState = meta.marketState || 'UNKNOWN';
+            
+            // Extract today's open from indicators (last entry in open array)
+            let regularMarketOpen: number | undefined = meta.regularMarketOpen;
+            if (regularMarketOpen === undefined && chart.indicators?.quote?.[0]?.open) {
+              const openArray = chart.indicators.quote[0].open;
+              // Get the last valid open value (today's open)
+              for (let i = openArray.length - 1; i >= 0; i--) {
+                if (typeof openArray[i] === 'number' && !Number.isNaN(openArray[i])) {
+                  regularMarketOpen = openArray[i];
+                  break;
+                }
+              }
+            }
             
             if (typeof price === 'number') {
               console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, open=${regularMarketOpen}, prevClose=${previousClose}, marketState=${marketState}`);
@@ -271,11 +288,13 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
   // Extract open, previousClose, and marketState
   const open = result.regularMarketOpen;
   const prevClose = result.regularMarketPreviousClose;
-  const marketState = result.marketState;
+  const marketState = result.marketState || 'UNKNOWN';
   
-  // Baseline selection: use open during REGULAR market hours, prevClose otherwise
+  // Baseline selection: use open during REGULAR/OPEN market hours, prevClose otherwise
   let baseline: number | null = null;
-  if (marketState === 'REGULAR' && typeof open === 'number' && open > 0) {
+  const isMarketOpen = marketState === 'REGULAR' || marketState === 'OPEN';
+  
+  if (isMarketOpen && typeof open === 'number' && open > 0) {
     baseline = open;
   } else if (typeof prevClose === 'number' && prevClose > 0) {
     baseline = prevClose;
@@ -288,7 +307,7 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
   if (baseline !== null) {
     change = price - baseline;
     changePct = (change / baseline) * 100;
-    console.log(`Yahoo computed for ${upperSymbol}: price=${price}, baseline=${baseline} (${marketState === 'REGULAR' ? 'open' : 'prevClose'}), change=${change.toFixed(2)}, changePct=${changePct.toFixed(2)}%`);
+    console.log(`Yahoo computed for ${upperSymbol}: price=${price}, baseline=${baseline} (${isMarketOpen ? 'open' : 'prevClose'}), state=${marketState}, change=${change.toFixed(2)}, changePct=${changePct.toFixed(2)}%`);
   } else {
     console.log(`Yahoo no baseline for ${upperSymbol}: price=${price}, open=${open}, prevClose=${prevClose}, marketState=${marketState}`);
   }
@@ -301,6 +320,11 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
     volume24h: result.regularMarketVolume,
     highRange: result.fiftyTwoWeekHigh,
     lowRange: result.fiftyTwoWeekLow,
+    // Debug fields
+    debugBaseline: baseline !== null ? Math.round(baseline * 100) / 100 : null,
+    debugOpen: typeof open === 'number' ? Math.round(open * 100) / 100 : null,
+    debugPrevClose: typeof prevClose === 'number' ? Math.round(prevClose * 100) / 100 : null,
+    debugMarketState: marketState,
   };
 
   yahooCache.set(upperSymbol, { data: quote, timestamp: Date.now() });
