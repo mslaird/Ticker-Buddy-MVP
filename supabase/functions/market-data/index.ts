@@ -275,39 +275,28 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
     return { quote: null, networkError: false };
   }
 
-  // Extract change - regularMarketChange is the dollar change
+  // Extract previousClose
+  const prevClose = result.regularMarketPreviousClose;
+  
+  // Compute change and changePct from price and previousClose (do NOT trust regularMarketChangePercent)
   let change: number | null = null;
-  if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
-    change = result.regularMarketChange;
-  }
-
-  // Extract changePct - regularMarketChangePercent is already a percentage (e.g., -1.97 for -1.97%)
   let changePct: number | null = null;
-  if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
-    changePct = result.regularMarketChangePercent;
-  } else if (change !== null && typeof result.regularMarketPreviousClose === 'number' && result.regularMarketPreviousClose > 0) {
-    // Fallback: compute from previousClose
-    changePct = (change / result.regularMarketPreviousClose) * 100;
-  }
-
-  // Sign consistency check: if change and changePct have different signs, recompute changePct
-  if (change !== null && changePct !== null) {
-    const changeSign = change >= 0 ? 1 : -1;
-    const pctSign = changePct >= 0 ? 1 : -1;
-    
-    if (changeSign !== pctSign) {
-      console.log(`Yahoo sign mismatch for ${upperSymbol}: change=${change}, changePct=${changePct} - recomputing`);
-      const prevClose = result.regularMarketPreviousClose;
-      if (typeof prevClose === 'number' && prevClose > 0) {
-        changePct = (change / prevClose) * 100;
-      } else if (price > 0) {
-        changePct = (change / price) * 100;
-      }
-      console.log(`Yahoo corrected changePct for ${upperSymbol}: ${changePct}`);
+  
+  if (typeof prevClose === 'number' && prevClose > 0) {
+    // Primary: compute from price and previousClose
+    change = price - prevClose;
+    changePct = (change / prevClose) * 100;
+    console.log(`Yahoo computed for ${upperSymbol}: price=${price}, prevClose=${prevClose}, change=${change.toFixed(2)}, changePct=${changePct.toFixed(2)}%`);
+  } else {
+    // Fallback: use Yahoo fields if previousClose unavailable
+    if (typeof result.regularMarketChange === 'number' && !Number.isNaN(result.regularMarketChange)) {
+      change = result.regularMarketChange;
     }
+    if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
+      changePct = result.regularMarketChangePercent;
+    }
+    console.log(`Yahoo fallback for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
   }
-
-  console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
 
   const quote: QuoteData = {
     price: Math.round(price * 100) / 100,
