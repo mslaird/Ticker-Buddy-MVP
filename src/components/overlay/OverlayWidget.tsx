@@ -76,8 +76,6 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
     return value > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />;
   };
 
-  const isDev = import.meta.env.DEV;
-
   const isQuoteUnavailable = (quote: Quote | undefined) => {
     return quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
   };
@@ -111,7 +109,6 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   const quote = quotes[ticker.symbol];
                   const hasData = quote && quote.price !== undefined && quote.price !== null;
                   const unavailable = isQuoteUnavailable(quote);
-                  const isEquity = ticker.asset_type === 'stock' || ticker.asset_type === 'etf';
                   
                   return (
                     <button
@@ -153,11 +150,6 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                             {!isCompact && (
                               <span className="text-[10px] text-muted-foreground/70">
                                 {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
-                              </span>
-                            )}
-                            {isDev && isEquity && quote && !isCompact && (
-                              <span className="text-[8px] text-muted-foreground/50 font-mono">
-                                state={quote.debugMarketState || '?'} base={quote.debugBaseline ?? '?'}
                               </span>
                             )}
                           </>

@@ -45,8 +45,6 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
     (quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct > 0 : false);
   const isNegative = quote && quote.change !== null && !Number.isNaN(quote.change) ? quote.change < 0 : 
     (quote && quote.changePct !== null && !Number.isNaN(quote.changePct) ? quote.changePct < 0 : false);
-  const isEquity = ticker.asset_type === 'stock' || ticker.asset_type === 'etf';
-  const isDev = import.meta.env.DEV;
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return '—';
@@ -112,11 +110,6 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
                   </span>
                 )}
               </div>
-              {isDev && isEquity && quote && (
-                <div className="text-[9px] text-muted-foreground/60 font-mono text-right">
-                  state={quote.debugMarketState || '?'} open={quote.debugOpen ?? '?'} prev={quote.debugPrevClose ?? '?'} base={quote.debugBaseline ?? '?'}
-                </div>
-              )}
             </>
           ) : (
             <div className="text-muted-foreground font-mono">—</div>
