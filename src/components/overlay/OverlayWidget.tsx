@@ -41,57 +41,56 @@ const positionClasses: Record<OverlaySettings['position'], string> = {
   'bottom-right': 'bottom-4 right-4',
 };
 
+// Grid columns are FIXED regardless of Compact Mode - same structure for all modes
+const GRID_COLS = '56px minmax(60px, 1fr) 84px';
+
 const sizeClasses: Record<OverlaySettings['size'], { 
   container: string; 
   text: string; 
   textCompact: string; 
-  rowPadding: string; 
-  rowPaddingCompact: string;
+  rowPaddingY: string; 
+  rowPaddingYCompact: string;
   containerPadding: string;
   containerPaddingCompact: string;
   rowGap: string;
   rowGapCompact: string;
   metaMargin: string;
-  gridCols: string;
 }> = {
   small: { 
-    container: 'w-56', 
+    container: 'w-60', 
     text: 'text-xs', 
     textCompact: 'text-[10px]', 
-    rowPadding: 'px-2 py-1.5', 
-    rowPaddingCompact: 'px-2 py-0.5',
+    rowPaddingY: 'py-1.5', 
+    rowPaddingYCompact: 'py-0.5',
     containerPadding: 'p-3',
     containerPaddingCompact: 'p-2',
     rowGap: 'gap-1.5',
     rowGapCompact: 'gap-0.5',
-    metaMargin: 'mt-1.5',
-    gridCols: '52px 1fr 80px',
+    metaMargin: 'mt-1',
   },
   medium: { 
     container: 'w-64', 
     text: 'text-sm', 
     textCompact: 'text-xs', 
-    rowPadding: 'px-2.5 py-2', 
-    rowPaddingCompact: 'px-2.5 py-1',
+    rowPaddingY: 'py-2', 
+    rowPaddingYCompact: 'py-1',
     containerPadding: 'p-4',
     containerPaddingCompact: 'p-2.5',
     rowGap: 'gap-2',
     rowGapCompact: 'gap-1',
-    metaMargin: 'mt-2',
-    gridCols: '56px 1fr 88px',
+    metaMargin: 'mt-1.5',
   },
   large: { 
-    container: 'w-80', 
+    container: 'w-72', 
     text: 'text-base', 
     textCompact: 'text-sm', 
-    rowPadding: 'px-3 py-2.5', 
-    rowPaddingCompact: 'px-3 py-1.5',
+    rowPaddingY: 'py-2.5', 
+    rowPaddingYCompact: 'py-1.5',
     containerPadding: 'p-5',
     containerPaddingCompact: 'p-3',
     rowGap: 'gap-2.5',
     rowGapCompact: 'gap-1.5',
-    metaMargin: 'mt-2.5',
-    gridCols: '60px 1fr 96px',
+    metaMargin: 'mt-2',
   },
 };
 
@@ -104,7 +103,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
   const isCompact = settings.compactMode;
   const textSize = isCompact ? sizeConfig.textCompact : sizeConfig.text;
   const containerPadding = isCompact ? sizeConfig.containerPaddingCompact : sizeConfig.containerPadding;
-  const rowPadding = isCompact ? sizeConfig.rowPaddingCompact : sizeConfig.rowPadding;
+  const rowPaddingY = isCompact ? sizeConfig.rowPaddingYCompact : sizeConfig.rowPaddingY;
   const rowGap = isCompact ? sizeConfig.rowGapCompact : sizeConfig.rowGap;
 
   const formatPrice = (price: number | null | undefined) => {
@@ -173,12 +172,12 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                       <button
                         key={ticker.id}
                         onClick={() => setSelectedTicker(ticker)}
-                        className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                        className={`w-full flex flex-col px-2 ${rowPaddingY} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                       >
-                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
+                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) - SAME for all modes */}
                         <div 
-                          className="grid items-center w-full gap-0" 
-                          style={{ gridTemplateColumns: sizeConfig.gridCols }}
+                          className="grid items-center w-full" 
+                          style={{ gridTemplateColumns: GRID_COLS, gap: '8px' }}
                         >
                           {/* Column 1: Ticker symbol - fixed width */}
                           <TooltipProvider delayDuration={300}>
@@ -213,7 +212,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                           </div>
                           
                           {/* Column 3: Percentage - fixed width, right-aligned */}
-                          <div className="flex items-center justify-end pl-2">
+                          <div className="flex items-center justify-end">
                             {!isLoading || hasData ? (
                               !unavailable && hasData ? (
                                 <span 
@@ -223,7 +222,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                                   {getChangeIcon(quote)}
                                   {formatPercent(quote?.changePct)}
                                 </span>
-                              ) : null
+                              ) : <span className={`${textSize} text-muted-foreground`}>—</span>
                             ) : null}
                           </div>
                         </div>
