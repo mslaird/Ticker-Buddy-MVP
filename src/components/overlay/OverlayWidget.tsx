@@ -158,70 +158,80 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   const hasData = quote && quote.price !== undefined && quote.price !== null;
                   const unavailable = isQuoteUnavailable(quote);
                   
+                  // Metadata font size: smaller on Small size to prevent cramping
+                  const metaSize = settings.size === 'small' ? 'text-[8px]' : 'text-[10px]';
+                  
                   return (
                     <button
                       key={ticker.id}
                       onClick={() => setSelectedTicker(ticker)}
-                      className={`w-full flex items-center justify-between ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                      className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={`${textSize} font-mono font-semibold text-foreground leading-relaxed`}>
-                          {ticker.symbol}
-                        </span>
+                      {/* 2-column layout: ticker left, price right */}
+                      <div className="flex items-start justify-between gap-3 w-full">
+                        {/* Left column: ticker + badge */}
+                        <div className="flex-shrink-0 max-w-[45%]">
+                          <span className={`${textSize} font-mono font-semibold text-foreground leading-tight block truncate`}>
+                            {ticker.symbol}
+                          </span>
+                        </div>
+                        
+                        {/* Right column: price + % */}
+                        <div className="flex-1 flex flex-col items-end min-w-0">
+                          {isLoading && !hasData && !unavailable ? (
+                            <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
+                          ) : unavailable ? (
+                            <>
+                              <span className={`${textSize} font-mono text-muted-foreground`}>
+                                —
+                              </span>
+                              {!isCompact && (
+                                <span className={`${metaSize} text-amber-500/80 mt-0.5`}>
+                                  {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`${textSize} font-mono text-foreground`}>
+                                  ${formatPrice(quote?.price)}
+                                </span>
+                                <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
+                                  {getChangeIcon(quote)}
+                                  {formatPercent(quote?.changePct)}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className={`flex flex-col items-end ${isCompact ? 'gap-0' : 'gap-1'}`}>
-                        {isLoading && !hasData && !unavailable ? (
-                          <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
-                        ) : unavailable ? (
-                          <>
-                            <span className={`${textSize} font-mono text-muted-foreground`}>
-                              —
-                            </span>
-                            {!isCompact && (
-                              <span className="text-[10px] text-amber-500/80">
-                                {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2">
-                              <span className={`${textSize} font-mono text-foreground`}>
-                                ${formatPrice(quote?.price)}
-                              </span>
-                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
-                                {getChangeIcon(quote)}
-                                {formatPercent(quote?.changePct)}
-                              </span>
-                            </div>
-                            {!isCompact && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground/70">
-                                  {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                      {/* Metadata line: separate row below, only when not compact */}
+                      {!isCompact && hasData && !unavailable && (
+                        <div className={`flex items-center justify-end gap-1 w-full ${settings.size === 'small' ? 'mt-0.5' : 'mt-1'}`}>
+                          <span className={`${metaSize} text-muted-foreground/70`}>
+                            {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                          </span>
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span 
+                                  className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Info className={settings.size === 'small' ? 'h-2 w-2' : 'h-2.5 w-2.5'} />
                                 </span>
-                                <TooltipProvider delayDuration={0}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button 
-                                        className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <Info className="h-2.5 w-2.5" />
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left" className="max-w-[180px] text-[10px]">
-                                      {ticker.asset_type === 'crypto' 
-                                        ? 'Live crypto quote.' 
-                                        : 'Delayed quote. % change from Yahoo Finance data.'}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-[180px] text-[10px]">
+                                {ticker.asset_type === 'crypto' 
+                                  ? 'Live crypto quote.' 
+                                  : 'Delayed quote. % change from Yahoo Finance data.'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      )}
                     </button>
                   );
                 })
