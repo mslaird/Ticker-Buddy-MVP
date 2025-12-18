@@ -168,15 +168,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Fetch with retry and fallback endpoints
+// Fetch using Yahoo chart API (more reliable from server environments)
 async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; networkError: boolean }> {
   const upperSymbol = symbol.toUpperCase().trim();
+  
+  // Use v8 chart API - more reliable from server environments
   const endpoints = [
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=2d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=2d`,
   ];
   
-  const retryDelays = [0, 300, 800]; // Initial, first retry, second retry
+  const retryDelays = [0, 500, 1000];
   
   for (const endpoint of endpoints) {
     for (let attempt = 0; attempt < retryDelays.length; attempt++) {
@@ -185,42 +187,68 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
       }
       
       try {
-        console.log(`Yahoo fetch attempt ${attempt + 1} for ${upperSymbol}: ${endpoint}`);
+        console.log(`Yahoo chart fetch attempt ${attempt + 1} for ${upperSymbol}`);
         
         const response = await fetch(endpoint, {
-          headers: yahooHeaders,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
         });
 
         if (response.ok) {
           const data = await response.json();
-          const result = data?.quoteResponse?.result;
+          const chart = data?.chart?.result?.[0];
           
-          // Check if we got valid results
-          if (result && Array.isArray(result) && result.length > 0) {
-            console.log(`Yahoo success for ${upperSymbol}: got ${result.length} results`);
-            return { data: result[0], networkError: false };
+          if (chart && chart.meta) {
+            const meta = chart.meta;
+            const price = meta.regularMarketPrice;
+            const previousClose = meta.chartPreviousClose || meta.previousClose;
+            
+            if (typeof price === 'number') {
+              // Calculate change from previous close
+              let change: number | null = null;
+              let changePct: number | null = null;
+              
+              if (typeof previousClose === 'number' && previousClose > 0) {
+                change = price - previousClose;
+                changePct = (change / previousClose) * 100;
+              }
+              
+              console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, prevClose=${previousClose}, change=${change?.toFixed(2)}, pct=${changePct?.toFixed(2)}`);
+              
+              return { 
+                data: {
+                  regularMarketPrice: price,
+                  regularMarketChange: change,
+                  regularMarketChangePercent: changePct,
+                  regularMarketPreviousClose: previousClose,
+                  fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
+                  fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
+                  regularMarketVolume: meta.regularMarketVolume,
+                },
+                networkError: false 
+              };
+            }
           }
           
-          // Empty result array - symbol not found
-          console.log(`Yahoo returned empty result for ${upperSymbol}`);
+          // No valid chart data
+          console.log(`Yahoo chart no valid data for ${upperSymbol}`);
           return { data: null, networkError: false };
         }
         
-        console.log(`Yahoo HTTP error ${response.status} for ${upperSymbol}`);
+        console.log(`Yahoo chart HTTP ${response.status} for ${upperSymbol}`);
         
-        // If rate limited, wait longer before retry
         if (response.status === 429) {
-          await sleep(1000);
+          await sleep(1500);
         }
       } catch (error) {
-        console.error(`Yahoo network error for ${upperSymbol}:`, error);
-        // Continue to retry/fallback
+        console.error(`Yahoo chart network error for ${upperSymbol}:`, error);
       }
     }
   }
   
-  // All attempts failed
-  console.log(`Yahoo all attempts failed for ${upperSymbol}`);
+  console.log(`Yahoo chart all attempts failed for ${upperSymbol}`);
   return { data: null, networkError: true };
 }
 
