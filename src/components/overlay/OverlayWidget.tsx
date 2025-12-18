@@ -51,39 +51,43 @@ const sizeClasses: Record<OverlaySettings['size'], {
   containerPaddingCompact: string;
   rowGap: string;
   rowGapCompact: string;
+  metaMargin: string;
 }> = {
   small: { 
     container: 'w-48', 
     text: 'text-xs', 
     textCompact: 'text-[10px]', 
-    rowPadding: 'px-2 py-2', 
+    rowPadding: 'px-2 py-1.5', 
     rowPaddingCompact: 'px-1.5 py-0.5',
     containerPadding: 'p-3',
     containerPaddingCompact: 'p-2',
-    rowGap: 'gap-2',
+    rowGap: 'gap-1.5',
     rowGapCompact: 'gap-0.5',
+    metaMargin: 'mt-1.5',
   },
   medium: { 
     container: 'w-64', 
     text: 'text-sm', 
     textCompact: 'text-xs', 
-    rowPadding: 'px-2.5 py-2.5', 
+    rowPadding: 'px-2.5 py-2', 
     rowPaddingCompact: 'px-2 py-1',
     containerPadding: 'p-4',
     containerPaddingCompact: 'p-2.5',
-    rowGap: 'gap-2.5',
+    rowGap: 'gap-2',
     rowGapCompact: 'gap-1',
+    metaMargin: 'mt-2',
   },
   large: { 
     container: 'w-80', 
     text: 'text-base', 
     textCompact: 'text-sm', 
-    rowPadding: 'px-3 py-3', 
+    rowPadding: 'px-3 py-2.5', 
     rowPaddingCompact: 'px-2.5 py-1.5',
     containerPadding: 'p-5',
     containerPaddingCompact: 'p-3',
-    rowGap: 'gap-3',
+    rowGap: 'gap-2.5',
     rowGapCompact: 'gap-1.5',
+    metaMargin: 'mt-2.5',
   },
 };
 
@@ -158,8 +162,10 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   const hasData = quote && quote.price !== undefined && quote.price !== null;
                   const unavailable = isQuoteUnavailable(quote);
                   
-                  // Metadata font size: smaller on Small size to prevent cramping
-                  const metaSize = settings.size === 'small' ? 'text-[8px]' : 'text-[10px]';
+                  // Metadata font size based on size
+                  const metaSize = settings.size === 'small' ? 'text-[9px]' : settings.size === 'medium' ? 'text-[10px]' : 'text-[11px]';
+                  // Only truncate symbols > 8 chars
+                  const shouldTruncate = ticker.symbol.length > 8;
                   
                   return (
                     <button
@@ -167,69 +173,68 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                       onClick={() => setSelectedTicker(ticker)}
                       className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
-                      {/* 2-column layout: ticker left, price right */}
-                      <div className="grid grid-cols-[1fr_auto] items-start w-full">
-                        {/* Left column: ticker + badge - truncates if needed */}
-                        <div className="min-w-0 overflow-hidden">
-                          <span className={`${textSize} font-mono font-semibold text-foreground leading-tight block truncate`}>
-                            {ticker.symbol}
-                          </span>
-                        </div>
+                      {/* Top line: ticker left, price+% right */}
+                      <div className="flex items-center gap-3 w-full">
+                        {/* Left: ticker - no shrink for short symbols */}
+                        <span 
+                          className={`${textSize} font-mono font-semibold text-foreground leading-tight ${shouldTruncate ? 'min-w-0 truncate flex-shrink' : 'flex-shrink-0'}`}
+                        >
+                          {ticker.symbol}
+                        </span>
                         
-                        {/* Right column: price + % - never shrinks */}
-                        <div className="flex-shrink-0 flex flex-col items-end pl-3">
+                        {/* Right: price + % - takes remaining space, right-aligned */}
+                        <div className="flex-1 flex items-center justify-end min-w-0">
                           {isLoading && !hasData && !unavailable ? (
                             <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
                           ) : unavailable ? (
-                            <>
-                              <span className={`${textSize} font-mono text-muted-foreground`}>
-                                —
-                              </span>
-                              {!isCompact && (
-                                <span className={`${metaSize} text-amber-500/80 mt-0.5`}>
-                                  {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
-                                </span>
-                              )}
-                            </>
+                            <span className={`${textSize} font-mono text-muted-foreground`}>
+                              —
+                            </span>
                           ) : (
-                            <>
-                              <div className="flex items-center gap-1.5">
-                                <span className={`${textSize} font-mono text-foreground`}>
-                                  ${formatPrice(quote?.price)}
-                                </span>
-                                <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
-                                  {getChangeIcon(quote)}
-                                  {formatPercent(quote?.changePct)}
-                                </span>
-                              </div>
-                            </>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`${textSize} font-mono text-foreground`}>
+                                ${formatPrice(quote?.price)}
+                              </span>
+                              <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
+                                {getChangeIcon(quote)}
+                                {formatPercent(quote?.changePct)}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
                       
-                      {/* Metadata line: separate row below, only when not compact */}
-                      {!isCompact && hasData && !unavailable && (
-                        <div className={`flex items-center justify-end gap-1 w-full ${settings.size === 'small' ? 'mt-0.5' : 'mt-1'}`}>
-                          <span className={`${metaSize} text-muted-foreground/70`}>
-                            {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
-                          </span>
-                          <TooltipProvider delayDuration={0}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span 
-                                  className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Info className={settings.size === 'small' ? 'h-2 w-2' : 'h-2.5 w-2.5'} />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-[180px] text-[10px]">
-                                {ticker.asset_type === 'crypto' 
-                                  ? 'Live crypto quote.' 
-                                  : 'Delayed quote. % change from Yahoo Finance data.'}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                      {/* Metadata line: own row below, right-aligned, only when not compact */}
+                      {!isCompact && (
+                        <div className={`flex items-center justify-end gap-1 w-full ${sizeConfig.metaMargin}`}>
+                          {unavailable ? (
+                            <span className={`${metaSize} text-amber-500/80`}>
+                              {isSourceUnavailable(quote) ? 'Source down' : 'Quote unavailable'}
+                            </span>
+                          ) : hasData ? (
+                            <>
+                              <span className={`${metaSize} text-muted-foreground/70`}>
+                                {quote?.isDelayed === false ? 'Live' : 'Delayed ~15 min'}
+                              </span>
+                              <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span 
+                                      className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Info className={settings.size === 'small' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="max-w-[180px] text-[10px]">
+                                    {ticker.asset_type === 'crypto' 
+                                      ? 'Live crypto quote.' 
+                                      : 'Delayed quote. % change from Yahoo Finance data.'}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
+                          ) : null}
                         </div>
                       )}
                     </button>
