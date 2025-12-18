@@ -52,42 +52,50 @@ const sizeClasses: Record<OverlaySettings['size'], {
   rowGap: string;
   rowGapCompact: string;
   metaMargin: string;
+  tickerWidth: string;
+  pctWidth: string;
 }> = {
   small: { 
-    container: 'w-48', 
+    container: 'w-52', 
     text: 'text-xs', 
     textCompact: 'text-[10px]', 
     rowPadding: 'px-2 py-1.5', 
-    rowPaddingCompact: 'px-1.5 py-0.5',
+    rowPaddingCompact: 'px-2 py-0.5',
     containerPadding: 'p-3',
     containerPaddingCompact: 'p-2',
     rowGap: 'gap-1.5',
     rowGapCompact: 'gap-0.5',
     metaMargin: 'mt-1.5',
+    tickerWidth: 'w-12',
+    pctWidth: 'w-16',
   },
   medium: { 
     container: 'w-64', 
     text: 'text-sm', 
     textCompact: 'text-xs', 
     rowPadding: 'px-2.5 py-2', 
-    rowPaddingCompact: 'px-2 py-1',
+    rowPaddingCompact: 'px-2.5 py-1',
     containerPadding: 'p-4',
     containerPaddingCompact: 'p-2.5',
     rowGap: 'gap-2',
     rowGapCompact: 'gap-1',
     metaMargin: 'mt-2',
+    tickerWidth: 'w-14',
+    pctWidth: 'w-20',
   },
   large: { 
     container: 'w-80', 
     text: 'text-base', 
     textCompact: 'text-sm', 
     rowPadding: 'px-3 py-2.5', 
-    rowPaddingCompact: 'px-2.5 py-1.5',
+    rowPaddingCompact: 'px-3 py-1.5',
     containerPadding: 'p-5',
     containerPaddingCompact: 'p-3',
     rowGap: 'gap-2.5',
     rowGapCompact: 'gap-1.5',
     metaMargin: 'mt-2.5',
+    tickerWidth: 'w-14',
+    pctWidth: 'w-24',
   },
 };
 
@@ -164,8 +172,6 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   
                   // Metadata font size based on size
                   const metaSize = settings.size === 'small' ? 'text-[9px]' : settings.size === 'medium' ? 'text-[10px]' : 'text-[11px]';
-                  // Only truncate symbols > 8 chars
-                  const shouldTruncate = ticker.symbol.length > 8;
                   
                   return (
                     <button
@@ -173,34 +179,36 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                       onClick={() => setSelectedTicker(ticker)}
                       className={`w-full flex flex-col ${rowPadding} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                     >
-                      {/* Top line: ticker left, price+% right */}
-                      <div className="flex items-center gap-3 w-full">
-                        {/* Left: ticker - no shrink for short symbols */}
-                        <span 
-                          className={`${textSize} font-mono font-semibold text-foreground leading-tight ${shouldTruncate ? 'min-w-0 truncate flex-shrink' : 'flex-shrink-0'}`}
-                        >
+                      {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
+                      <div className="grid items-center w-full" style={{ gridTemplateColumns: `${settings.size === 'small' ? '48px' : '56px'} 1fr auto` }}>
+                        {/* Column 1: Ticker symbol - fixed width, no truncation */}
+                        <span className={`${textSize} font-mono font-semibold text-foreground leading-tight`}>
                           {ticker.symbol}
                         </span>
                         
-                        {/* Right: price + % - takes remaining space, right-aligned */}
-                        <div className="flex-1 flex items-center justify-end min-w-0">
+                        {/* Column 2: Price - flexible, right-aligned */}
+                        <div className="flex items-center justify-end px-2">
                           {isLoading && !hasData && !unavailable ? (
-                            <Skeleton className={isCompact ? 'h-3 w-14' : 'h-4 w-16'} />
+                            <Skeleton className={isCompact ? 'h-3 w-12' : 'h-4 w-14'} />
                           ) : unavailable ? (
-                            <span className={`${textSize} font-mono text-muted-foreground`}>
-                              —
-                            </span>
+                            <span className={`${textSize} font-mono text-muted-foreground`}>—</span>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className={`${textSize} font-mono text-foreground`}>
-                                ${formatPrice(quote?.price)}
-                              </span>
+                            <span className={`${textSize} font-mono text-foreground`}>
+                              ${formatPrice(quote?.price)}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Column 3: Percentage - fixed width, right-aligned */}
+                        <div className={`${sizeConfig.pctWidth} flex items-center justify-end`}>
+                          {!isLoading || hasData ? (
+                            !unavailable && hasData ? (
                               <span className={`${textSize} font-mono flex items-center gap-0.5 ${getChangeColor(quote)}`}>
                                 {getChangeIcon(quote)}
                                 {formatPercent(quote?.changePct)}
                               </span>
-                            </div>
-                          )}
+                            ) : null
+                          ) : null}
                         </div>
                       </div>
                       
