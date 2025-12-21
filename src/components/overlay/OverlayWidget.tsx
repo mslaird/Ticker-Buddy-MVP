@@ -206,15 +206,15 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                             </Tooltip>
                           </TooltipProvider>
                           
-                          {/* Column 2: Price - flexible, right-aligned, with overflow handling */}
-                          <div className="flex items-center justify-end min-w-0">
+                          {/* Column 2: Price - flexible, right-aligned */}
+                          <div className={`flex items-center justify-end ${isCompact ? 'min-w-0' : ''}`}>
                             {isLoading && !hasData && !unavailable ? (
                               <Skeleton className={isCompact ? 'h-3 w-12' : 'h-4 w-14'} />
                             ) : unavailable ? (
-                              <span className={`${textSize} font-mono text-muted-foreground truncate`} style={{ fontVariantNumeric: 'tabular-nums' }}>—</span>
+                              <span className={`${textSize} font-mono text-muted-foreground ${isCompact ? 'truncate' : 'whitespace-nowrap'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>—</span>
                             ) : (
                               <span 
-                                className={`${textSize} font-mono text-foreground truncate`} 
+                                className={`${textSize} font-mono text-foreground ${isCompact ? 'truncate' : 'whitespace-nowrap'}`} 
                                 style={{ fontVariantNumeric: 'tabular-nums' }}
                               >
                                 ${formatPrice(quote?.price)}
