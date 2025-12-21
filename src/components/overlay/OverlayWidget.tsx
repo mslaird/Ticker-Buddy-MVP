@@ -1,3 +1,7 @@
+// CHECKPOINT: Overlay layout stable — do not change row width / truncation rules
+// without testing Compact ON/OFF for Small/Medium/Large (BTC must not ellipsize).
+// See CHECKPOINTS.md and src/components/overlay/README.md for details.
+
 import { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
