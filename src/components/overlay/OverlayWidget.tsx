@@ -43,7 +43,7 @@ const positionClasses: Record<OverlaySettings['position'], string> = {
 
 // Grid columns - Compact mode keeps tighter layout, non-compact has more breathing room
 const GRID_COLS_COMPACT = '56px minmax(60px, 1fr) 84px';
-const GRID_COLS_NORMAL = '64px minmax(60px, 1fr) 88px';
+const GRID_COLS_NORMAL = '72px minmax(60px, 1fr) 80px';
 
 const sizeClasses: Record<OverlaySettings['size'], { 
   container: string; 
@@ -169,20 +169,21 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                   // Metadata font size based on size
                   const metaSize = settings.size === 'small' ? 'text-[9px]' : settings.size === 'medium' ? 'text-[10px]' : 'text-[11px]';
                   
-                    // Add extra right padding for Small + non-compact to give % change breathing room
-                    const rowRightPadding = !isCompact && settings.size === 'small' ? 'pr-3' : 'pr-2';
-                    const gridCols = isCompact ? GRID_COLS_COMPACT : GRID_COLS_NORMAL;
+                  // Add extra right padding for Small + non-compact to give % change breathing room
+                  const rowRightPadding = !isCompact && settings.size === 'small' ? 'pr-4' : 'pr-2';
+                  const gridCols = isCompact ? GRID_COLS_COMPACT : GRID_COLS_NORMAL;
+                  const gridGap = isCompact ? '8px' : '12px';
                     
-                    return (
-                      <button
-                        key={ticker.id}
-                        onClick={() => setSelectedTicker(ticker)}
-                        className={`w-full flex flex-col pl-2 ${rowRightPadding} ${rowPaddingY} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
-                      >
-                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
-                        <div 
-                          className="grid items-center w-full" 
-                          style={{ gridTemplateColumns: gridCols, gap: '8px' }}
+                  return (
+                    <button
+                      key={ticker.id}
+                      onClick={() => setSelectedTicker(ticker)}
+                      className={`w-full flex flex-col pl-2 ${rowRightPadding} ${rowPaddingY} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
+                    >
+                      {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
+                      <div 
+                        className="grid items-center w-full" 
+                        style={{ gridTemplateColumns: gridCols, gap: gridGap }}
                         >
                           {/* Column 1: Ticker symbol - fixed width */}
                           <TooltipProvider delayDuration={300}>
