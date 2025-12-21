@@ -41,8 +41,13 @@ const positionClasses: Record<OverlaySettings['position'], string> = {
   'bottom-right': 'bottom-4 right-4',
 };
 
-// Grid columns are FIXED regardless of Compact Mode - same structure for all modes
-const GRID_COLS = '56px minmax(60px, 1fr) 84px';
+// Grid columns: Compact uses tighter widths, Non-compact uses wider widths with more breathing room
+const GRID_COLS_COMPACT = '52px minmax(48px, 1fr) 80px';
+const GRID_COLS_NON_COMPACT: Record<OverlaySettings['size'], string> = {
+  small: 'minmax(56px, 72px) minmax(60px, 1fr) 88px',
+  medium: 'minmax(60px, 80px) minmax(64px, 1fr) 96px',
+  large: 'minmax(64px, 88px) minmax(72px, 1fr) 108px',
+};
 
 const sizeClasses: Record<OverlaySettings['size'], { 
   container: string; 
@@ -57,36 +62,36 @@ const sizeClasses: Record<OverlaySettings['size'], {
   metaMargin: string;
 }> = {
   small: { 
-    container: 'w-60', 
+    container: 'w-64', 
     text: 'text-xs', 
     textCompact: 'text-[10px]', 
     rowPaddingY: 'py-1.5', 
     rowPaddingYCompact: 'py-0.5',
-    containerPadding: 'p-3',
+    containerPadding: 'p-3 pr-4',
     containerPaddingCompact: 'p-2',
     rowGap: 'gap-1.5',
     rowGapCompact: 'gap-0.5',
     metaMargin: 'mt-1',
   },
   medium: { 
-    container: 'w-64', 
+    container: 'w-72', 
     text: 'text-sm', 
     textCompact: 'text-xs', 
     rowPaddingY: 'py-2', 
     rowPaddingYCompact: 'py-1',
-    containerPadding: 'p-4',
+    containerPadding: 'p-4 pr-5',
     containerPaddingCompact: 'p-2.5',
     rowGap: 'gap-2',
     rowGapCompact: 'gap-1',
     metaMargin: 'mt-1.5',
   },
   large: { 
-    container: 'w-72', 
+    container: 'w-80', 
     text: 'text-base', 
     textCompact: 'text-sm', 
     rowPaddingY: 'py-2.5', 
     rowPaddingYCompact: 'py-1.5',
-    containerPadding: 'p-5',
+    containerPadding: 'p-5 pr-6',
     containerPaddingCompact: 'p-3',
     rowGap: 'gap-2.5',
     rowGapCompact: 'gap-1.5',
@@ -174,17 +179,20 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                         onClick={() => setSelectedTicker(ticker)}
                         className={`w-full flex flex-col px-2 ${rowPaddingY} rounded-lg bg-background/40 hover:bg-background/60 transition-colors cursor-pointer`}
                       >
-                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) - SAME for all modes */}
+                        {/* 3-column grid: ticker (fixed) | price (flex) | % (fixed) */}
                         <div 
                           className="grid items-center w-full" 
-                          style={{ gridTemplateColumns: GRID_COLS, gap: '8px' }}
+                          style={{ 
+                            gridTemplateColumns: isCompact ? GRID_COLS_COMPACT : GRID_COLS_NON_COMPACT[settings.size], 
+                            gap: isCompact ? '6px' : '10px' 
+                          }}
                         >
-                          {/* Column 1: Ticker symbol - fixed width */}
+                          {/* Column 1: Ticker symbol - fixed width, left-aligned */}
                           <TooltipProvider delayDuration={300}>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span 
-                                  className={`${textSize} font-mono font-semibold text-foreground leading-tight truncate`}
+                                  className={`${textSize} font-mono font-semibold text-foreground leading-tight truncate text-left`}
                                   style={{ fontVariantNumeric: 'tabular-nums' }}
                                 >
                                   {ticker.symbol}
@@ -198,14 +206,17 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = fa
                             </Tooltip>
                           </TooltipProvider>
                           
-                          {/* Column 2: Price - flexible, right-aligned */}
-                          <div className="flex items-center justify-end">
+                          {/* Column 2: Price - flexible, right-aligned, with overflow handling */}
+                          <div className="flex items-center justify-end min-w-0">
                             {isLoading && !hasData && !unavailable ? (
                               <Skeleton className={isCompact ? 'h-3 w-12' : 'h-4 w-14'} />
                             ) : unavailable ? (
-                              <span className={`${textSize} font-mono text-muted-foreground`} style={{ fontVariantNumeric: 'tabular-nums' }}>—</span>
+                              <span className={`${textSize} font-mono text-muted-foreground truncate`} style={{ fontVariantNumeric: 'tabular-nums' }}>—</span>
                             ) : (
-                              <span className={`${textSize} font-mono text-foreground`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                              <span 
+                                className={`${textSize} font-mono text-foreground truncate`} 
+                                style={{ fontVariantNumeric: 'tabular-nums' }}
+                              >
                                 ${formatPrice(quote?.price)}
                               </span>
                             )}
