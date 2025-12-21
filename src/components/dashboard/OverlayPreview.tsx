@@ -29,8 +29,11 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
     return `${sign}${pct.toFixed(2)}%`;
   };
 
+  // 3-column grid for consistent alignment
+  const GRID_COLS = 'minmax(56px, 72px) minmax(60px, 1fr) 88px';
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 pr-3 overflow-hidden">
       {tickers.slice(0, 5).map((ticker) => {
         const quote = quotes[ticker.symbol];
         const hasData = quote !== undefined && quote.price !== null;
@@ -42,48 +45,57 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
         return (
           <div
             key={ticker.id}
-            className="ticker-widget flex items-center justify-between gap-4 animate-slide-in"
+            className="ticker-widget grid items-center animate-slide-in"
+            style={{ gridTemplateColumns: GRID_COLS, gap: '10px' }}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-mono font-medium text-foreground text-sm truncate">
-                {ticker.symbol}
-              </span>
-            </div>
+            {/* Column 1: Symbol - left-aligned */}
+            <span className="font-mono font-medium text-foreground text-sm truncate text-left">
+              {ticker.symbol}
+            </span>
             
-            <div className="flex items-center gap-2">
+            {/* Column 2: Price - right-aligned with overflow handling */}
+            <div className="flex items-center justify-end min-w-0">
               {isLoading && !hasData && !isUnavailable ? (
-                <>
-                  <Skeleton className="h-4 w-12" />
-                  <Skeleton className="h-4 w-14" />
-                </>
+                <Skeleton className="h-4 w-12" />
               ) : isUnavailable ? (
-                <span className="font-mono text-xs text-amber-500/80">
+                <span className="font-mono text-xs text-amber-500/80 truncate">
                   {isSourceUnavailable ? 'Source down' : 'Unavailable'}
                 </span>
               ) : hasData ? (
-                <>
-                  <span className="font-mono text-sm text-foreground">
-                    ${formatPrice(quote?.price)}
-                  </span>
-                  <div className={`flex items-center gap-0.5 text-xs font-mono ${
+                <span className="font-mono text-sm text-foreground truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  ${formatPrice(quote?.price)}
+                </span>
+              ) : (
+                <span className="font-mono text-sm text-muted-foreground">—</span>
+              )}
+            </div>
+            
+            {/* Column 3: % change - right-aligned */}
+            <div className="flex items-center justify-end">
+              {isLoading && !hasData && !isUnavailable ? (
+                <Skeleton className="h-4 w-14" />
+              ) : hasData && !isUnavailable ? (
+                <div 
+                  className={`flex items-center gap-0.5 text-xs font-mono ${
                     isPositive 
                       ? 'text-ticker-positive' 
                       : isNegative 
                         ? 'text-ticker-negative' 
                         : 'text-ticker-neutral'
-                  }`}>
-                    {isPositive ? (
-                      <TrendingUp className="h-3 w-3" />
-                    ) : isNegative ? (
-                      <TrendingDown className="h-3 w-3" />
-                    ) : (
-                      <Minus className="h-3 w-3" />
-                    )}
-                    <span>{formatChangePct(quote?.changePct)}</span>
-                  </div>
-                </>
+                  }`}
+                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {isPositive ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : isNegative ? (
+                    <TrendingDown className="h-3 w-3" />
+                  ) : (
+                    <Minus className="h-3 w-3" />
+                  )}
+                  <span>{formatChangePct(quote?.changePct)}</span>
+                </div>
               ) : (
-                <span className="font-mono text-sm text-muted-foreground">—</span>
+                <span className="font-mono text-xs text-muted-foreground">—</span>
               )}
             </div>
           </div>
