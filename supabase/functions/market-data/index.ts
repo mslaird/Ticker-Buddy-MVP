@@ -324,6 +324,48 @@ const knownETFs = new Set([
   'IGM', 'IXN', 'CIBR', 'HACK', 'BUG', 'BOTZ', 'ROBO', 'AIQ', 'IRBO',
 ]);
 
+// Fallback: try Yahoo search API to get display name
+async function fetchDisplayNameFallback(symbol: string, isDev: boolean): Promise<string | null> {
+  try {
+    const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=5&newsCount=0`;
+    
+    if (isDev) {
+      console.log(`[resolveSymbol] Fallback search for display name: ${symbol}`);
+    }
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const quotes = data?.quotes || [];
+      
+      // Find exact symbol match (case-insensitive)
+      const upperSymbol = symbol.toUpperCase();
+      const exactMatch = quotes.find((q: any) => 
+        q.symbol?.toUpperCase() === upperSymbol
+      );
+      
+      if (exactMatch) {
+        const name = exactMatch.longname || exactMatch.shortname || null;
+        if (isDev) {
+          console.log(`[resolveSymbol] Fallback found name: ${name}`);
+        }
+        return name;
+      }
+    }
+  } catch (err) {
+    if (isDev) {
+      console.log(`[resolveSymbol] Fallback search failed:`, err);
+    }
+  }
+  return null;
+}
+
 // Resolve symbol and detect asset type
 async function resolveSymbol(symbol: string): Promise<{
   canonicalSymbol: string;
@@ -353,15 +395,17 @@ async function resolveSymbol(symbol: string): Promise<{
     };
   }
   
-  // 2. Check if it's a known ETF
+  // 2. Check if it's a known ETF - still need to fetch display name
   if (knownETFs.has(upperSymbol)) {
     if (isDev) {
-      console.log(`[resolveSymbol] ${upperSymbol} -> etf (knownETFs)`);
+      console.log(`[resolveSymbol] ${upperSymbol} -> etf (knownETFs), fetching display name...`);
     }
+    // Try to get display name via search API since known ETFs don't have cached names
+    const fallbackName = await fetchDisplayNameFallback(upperSymbol, isDev);
     return {
       canonicalSymbol: upperSymbol,
       detectedType: 'etf',
-      displayName: null,
+      displayName: fallbackName,
       confidence: 'high',
       sourceUsed: 'knownETFs',
     };
@@ -384,10 +428,18 @@ async function resolveSymbol(symbol: string): Promise<{
         
         if (meta && typeof meta.regularMarketPrice === 'number') {
           const quoteType = (meta.quoteType || '').toUpperCase();
-          const shortName = meta.shortName || meta.longName || null;
+          let displayName = meta.shortName || meta.longName || null;
           
           if (isDev) {
-            console.log(`[resolveSymbol] Yahoo quoteType for ${upperSymbol}: ${quoteType}, shortName: ${shortName}`);
+            console.log(`[resolveSymbol] Yahoo quoteType for ${upperSymbol}: ${quoteType}, shortName: ${displayName}`);
+          }
+          
+          // If no display name, try fallback search (common for ETFs/funds)
+          if (!displayName && (quoteType === 'ETF' || quoteType === 'MUTUALFUND')) {
+            if (isDev) {
+              console.log(`[resolveSymbol] No display name from chart, trying fallback search...`);
+            }
+            displayName = await fetchDisplayNameFallback(upperSymbol, isDev);
           }
           
           // Yahoo returns quoteType: EQUITY for stocks, ETF for ETFs
@@ -395,9 +447,9 @@ async function resolveSymbol(symbol: string): Promise<{
             return {
               canonicalSymbol: upperSymbol,
               detectedType: 'etf',
-              displayName: shortName,
+              displayName,
               confidence: 'high',
-              sourceUsed: 'yahoo_quoteType',
+              sourceUsed: displayName ? 'yahoo_quoteType' : 'yahoo_quoteType_no_name',
             };
           }
           
@@ -405,7 +457,7 @@ async function resolveSymbol(symbol: string): Promise<{
             return {
               canonicalSymbol: upperSymbol,
               detectedType: 'stock',
-              displayName: shortName,
+              displayName,
               confidence: 'high',
               sourceUsed: 'yahoo_quoteType',
             };
@@ -415,7 +467,7 @@ async function resolveSymbol(symbol: string): Promise<{
           return {
             canonicalSymbol: upperSymbol,
             detectedType: 'stock',
-            displayName: shortName,
+            displayName,
             confidence: 'medium',
             sourceUsed: 'yahoo_fallback',
           };
@@ -428,15 +480,17 @@ async function resolveSymbol(symbol: string): Promise<{
     }
   }
   
-  // 4. Fallback - assume stock with low confidence
+  // 4. Fallback - try search API for name, assume stock with low confidence
+  const fallbackName = await fetchDisplayNameFallback(upperSymbol, isDev);
+  
   if (isDev) {
-    console.log(`[resolveSymbol] ${upperSymbol} -> stock (fallback, low confidence)`);
+    console.log(`[resolveSymbol] ${upperSymbol} -> stock (fallback, low confidence), name: ${fallbackName}`);
   }
   
   return {
     canonicalSymbol: upperSymbol,
     detectedType: 'stock',
-    displayName: null,
+    displayName: fallbackName,
     confidence: 'low',
     sourceUsed: 'fallback',
   };
