@@ -15,7 +15,7 @@ export async function fetchMarketCapFallback(symbol: string): Promise<number | n
   const upperSymbol = symbol.trim().toUpperCase();
 
   try {
-    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=summaryDetail`;
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price,summaryDetail,defaultKeyStatistics`;
 
     const response = await fetch(url, {
       headers: {
@@ -34,8 +34,12 @@ export async function fetchMarketCapFallback(symbol: string): Promise<number | n
       return null;
     }
 
-    // Extract marketCap from summaryDetail.marketCap.raw
-    const marketCap = result.summaryDetail?.marketCap?.raw;
+    // Extract marketCap from first available source (in priority order)
+    const marketCap = 
+      result.price?.marketCap?.raw ??
+      result.summaryDetail?.marketCap?.raw ??
+      result.defaultKeyStatistics?.marketCap?.raw ??
+      null;
 
     if (typeof marketCap === 'number' && marketCap > 0) {
       // TEMP DEBUG — REMOVE AFTER VERIFICATION
