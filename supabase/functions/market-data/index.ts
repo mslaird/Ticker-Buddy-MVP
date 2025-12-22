@@ -302,6 +302,146 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
   return { quote, networkError: false };
 }
 
+// Well-known ETF symbols for quick detection
+const knownETFs = new Set([
+  'SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VOO', 'VEA', 'VWO', 'EFA', 'EEM',
+  'AGG', 'BND', 'LQD', 'HYG', 'TLT', 'IEF', 'SHY', 'TIP', 'VCIT', 'VCSH',
+  'GLD', 'SLV', 'USO', 'UNG', 'DBC', 'GSG', 'PDBC', 'IAU', 'SGOL', 'PPLT',
+  'XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLP', 'XLY', 'XLB', 'XLU', 'XLRE',
+  'VNQ', 'IYR', 'SCHH', 'RWR', 'USRT', 'REET', 'ICF', 'REM', 'MORT', 'REZ',
+  'ARKK', 'ARKG', 'ARKW', 'ARKF', 'ARKQ', 'ARKX', 'PRNT', 'IZRL', 'CTRU',
+  'VGT', 'FTEC', 'IYW', 'IGV', 'SMH', 'SOXX', 'XSD', 'PSJ', 'SKYY', 'CLOU',
+  'VHT', 'XBI', 'IBB', 'IHI', 'IHF', 'XHS', 'ARKG', 'IDNA', 'GNOM', 'HELX',
+  'VFH', 'IYF', 'KRE', 'KBE', 'IAI', 'IAT', 'KBWB', 'KBWP', 'KBWR', 'KBWY',
+  'VDE', 'XOP', 'OIH', 'AMLP', 'MLPA', 'FCG', 'PXE', 'IEO', 'ERX', 'DRIP',
+  'SCHD', 'VIG', 'DVY', 'VYM', 'HDV', 'SDY', 'NOBL', 'DGRO', 'DGRW', 'FVD',
+  'SPHD', 'SPLV', 'USMV', 'EFAV', 'EEMV', 'ACWV', 'XMLV', 'XSLV', 'SMMV',
+  'MTUM', 'VLUE', 'QUAL', 'SIZE', 'VFMO', 'VFQY', 'VFMF', 'JMOM', 'QMOM',
+  'IEMG', 'VWO', 'SCHE', 'SPEM', 'FNDE', 'DEM', 'EDIV', 'DGS', 'DVYE',
+  'EWJ', 'EWG', 'EWU', 'EWC', 'EWA', 'EWZ', 'EWY', 'EWT', 'EWH', 'EWS',
+  'FXI', 'MCHI', 'ASHR', 'CNYA', 'KBA', 'GXC', 'KWEB', 'CQQQ', 'PGJ',
+  'SOXL', 'SOXS', 'TQQQ', 'SQQQ', 'UPRO', 'SPXU', 'TNA', 'TZA', 'FAS',
+  'IGM', 'IXN', 'CIBR', 'HACK', 'BUG', 'BOTZ', 'ROBO', 'AIQ', 'IRBO',
+]);
+
+// Resolve symbol and detect asset type
+async function resolveSymbol(symbol: string): Promise<{
+  canonicalSymbol: string;
+  detectedType: 'stock' | 'etf' | 'crypto';
+  displayName: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  sourceUsed: string;
+}> {
+  const upperSymbol = symbol.toUpperCase().trim();
+  const isDev = Deno.env.get('DENO_DEPLOYMENT_ID') === undefined;
+  
+  if (isDev) {
+    console.log(`[resolveSymbol] Resolving: ${upperSymbol}`);
+  }
+  
+  // 1. Check if it's a known crypto
+  if (cryptoIdMap[upperSymbol]) {
+    if (isDev) {
+      console.log(`[resolveSymbol] ${upperSymbol} -> crypto (cryptoIdMap)`);
+    }
+    return {
+      canonicalSymbol: upperSymbol,
+      detectedType: 'crypto',
+      displayName: null,
+      confidence: 'high',
+      sourceUsed: 'cryptoIdMap',
+    };
+  }
+  
+  // 2. Check if it's a known ETF
+  if (knownETFs.has(upperSymbol)) {
+    if (isDev) {
+      console.log(`[resolveSymbol] ${upperSymbol} -> etf (knownETFs)`);
+    }
+    return {
+      canonicalSymbol: upperSymbol,
+      detectedType: 'etf',
+      displayName: null,
+      confidence: 'high',
+      sourceUsed: 'knownETFs',
+    };
+  }
+  
+  // 3. Try Yahoo Finance for stocks/ETFs - check quoteType in meta
+  if (/^[A-Z]{1,5}$/.test(upperSymbol)) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=1d`;
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const meta = data?.chart?.result?.[0]?.meta;
+        
+        if (meta && typeof meta.regularMarketPrice === 'number') {
+          const quoteType = (meta.quoteType || '').toUpperCase();
+          const shortName = meta.shortName || meta.longName || null;
+          
+          if (isDev) {
+            console.log(`[resolveSymbol] Yahoo quoteType for ${upperSymbol}: ${quoteType}, shortName: ${shortName}`);
+          }
+          
+          // Yahoo returns quoteType: EQUITY for stocks, ETF for ETFs
+          if (quoteType === 'ETF') {
+            return {
+              canonicalSymbol: upperSymbol,
+              detectedType: 'etf',
+              displayName: shortName,
+              confidence: 'high',
+              sourceUsed: 'yahoo_quoteType',
+            };
+          }
+          
+          if (quoteType === 'EQUITY' || quoteType === 'STOCK') {
+            return {
+              canonicalSymbol: upperSymbol,
+              detectedType: 'stock',
+              displayName: shortName,
+              confidence: 'high',
+              sourceUsed: 'yahoo_quoteType',
+            };
+          }
+          
+          // Unknown quoteType but valid price - default to stock with medium confidence
+          return {
+            canonicalSymbol: upperSymbol,
+            detectedType: 'stock',
+            displayName: shortName,
+            confidence: 'medium',
+            sourceUsed: 'yahoo_fallback',
+          };
+        }
+      }
+    } catch (err) {
+      if (isDev) {
+        console.log(`[resolveSymbol] Yahoo lookup failed for ${upperSymbol}:`, err);
+      }
+    }
+  }
+  
+  // 4. Fallback - assume stock with low confidence
+  if (isDev) {
+    console.log(`[resolveSymbol] ${upperSymbol} -> stock (fallback, low confidence)`);
+  }
+  
+  return {
+    canonicalSymbol: upperSymbol,
+    detectedType: 'stock',
+    displayName: null,
+    confidence: 'low',
+    sourceUsed: 'fallback',
+  };
+}
+
 // Validate symbol exists via Yahoo Finance
 async function validateSymbol(symbol: string, assetType: string): Promise<{ valid: boolean; reason?: string }> {
   const upperSymbol = symbol.toUpperCase().trim();
@@ -407,6 +547,22 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+    
+    // Handle symbol resolution request (auto-detect asset type)
+    if (body.action === 'resolve') {
+      const { symbol } = body;
+      if (!symbol || typeof symbol !== 'string') {
+        return new Response(
+          JSON.stringify({ error: 'symbol is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const result = await resolveSymbol(symbol);
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Handle symbol validation request
     if (body.action === 'validate') {
