@@ -44,6 +44,85 @@ const cryptoIdMap: Record<string, string> = {
   'SHIB': 'shiba-inu',
 };
 
+// Crypto symbol to friendly display name fallback map
+const cryptoNameMap: Record<string, string> = {
+  'BTC': 'Bitcoin',
+  'ETH': 'Ethereum',
+  'SOL': 'Solana',
+  'ADA': 'Cardano',
+  'XRP': 'Ripple',
+  'DOGE': 'Dogecoin',
+  'AVAX': 'Avalanche',
+  'DOT': 'Polkadot',
+  'LINK': 'Chainlink',
+  'MATIC': 'Polygon',
+  'LTC': 'Litecoin',
+  'BCH': 'Bitcoin Cash',
+  'UNI': 'Uniswap',
+  'ATOM': 'Cosmos',
+  'NEAR': 'NEAR Protocol',
+  'APT': 'Aptos',
+  'ARB': 'Arbitrum',
+  'OP': 'Optimism',
+  'FIL': 'Filecoin',
+  'SHIB': 'Shiba Inu',
+  'XLM': 'Stellar',
+  'ALGO': 'Algorand',
+  'VET': 'VeChain',
+  'ICP': 'Internet Computer',
+  'HBAR': 'Hedera',
+  'SAND': 'The Sandbox',
+  'MANA': 'Decentraland',
+  'AXS': 'Axie Infinity',
+  'AAVE': 'Aave',
+  'MKR': 'Maker',
+  'CRO': 'Cronos',
+  'FTM': 'Fantom',
+  'EGLD': 'MultiversX',
+  'THETA': 'Theta Network',
+  'XTZ': 'Tezos',
+  'EOS': 'EOS',
+  'FLOW': 'Flow',
+  'KCS': 'KuCoin',
+  'NEO': 'NEO',
+  'KLAY': 'Klaytn',
+  'XMR': 'Monero',
+  'CAKE': 'PancakeSwap',
+  'GRT': 'The Graph',
+  'CHZ': 'Chiliz',
+  'ENJ': 'Enjin Coin',
+  'ZEC': 'Zcash',
+  'BAT': 'Basic Attention Token',
+  'COMP': 'Compound',
+  'SNX': 'Synthetix',
+  'YFI': 'yearn.finance',
+  'SUSHI': 'SushiSwap',
+  '1INCH': '1inch',
+  'CRV': 'Curve DAO',
+  'LDO': 'Lido DAO',
+  'RPL': 'Rocket Pool',
+  'PEPE': 'Pepe',
+  'WIF': 'dogwifhat',
+  'BONK': 'Bonk',
+  'FLOKI': 'Floki',
+  'RENDER': 'Render',
+  'INJ': 'Injective',
+  'SEI': 'Sei',
+  'SUI': 'Sui',
+  'TIA': 'Celestia',
+  'JUP': 'Jupiter',
+  'PYTH': 'Pyth Network',
+  'WLD': 'Worldcoin',
+  'BLUR': 'Blur',
+  'RNDR': 'Render Token',
+  'IMX': 'Immutable X',
+  'GMX': 'GMX',
+  'PENDLE': 'Pendle',
+  'STX': 'Stacks',
+  'RUNE': 'THORChain',
+  'OSMO': 'Osmosis',
+};
+
 // Browser-like headers for Yahoo requests
 const yahooHeaders = {
   'Accept': 'application/json,text/plain,*/*',
@@ -383,13 +462,17 @@ async function resolveSymbol(symbol: string): Promise<{
   
   // 1. Check if it's a known crypto
   if (cryptoIdMap[upperSymbol]) {
+    // Use built-in name map for crypto display names
+    const cryptoName = cryptoNameMap[upperSymbol] || null;
+    const nameSource = cryptoName ? 'fallback_map' : 'none';
+    
     if (isDev) {
-      console.log(`[resolveSymbol] ${upperSymbol} -> crypto (cryptoIdMap)`);
+      console.log(`[resolveSymbol] ${upperSymbol} -> crypto (cryptoIdMap), name_source: ${nameSource}, name: ${cryptoName}`);
     }
     return {
       canonicalSymbol: upperSymbol,
       detectedType: 'crypto',
-      displayName: null,
+      displayName: cryptoName,
       confidence: 'high',
       sourceUsed: 'cryptoIdMap',
     };
