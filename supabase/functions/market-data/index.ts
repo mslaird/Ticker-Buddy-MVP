@@ -251,7 +251,7 @@ function sleep(ms: number): Promise<void> {
 const marketCapCache: Map<string, { data: number | null; timestamp: number }> = new Map();
 const MARKET_CAP_CACHE_TTL_MS = 60000; // 1 minute for market cap
 
-// Fetch market cap from Yahoo quoteSummary API
+// Fetch market cap from Yahoo v7 quote API (more reliable than quoteSummary)
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const upperSymbol = symbol.toUpperCase().trim();
   
@@ -263,10 +263,10 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   }
   
   try {
-    // Fetch all three modules in a single call for efficiency
-    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price,summaryDetail,defaultKeyStatistics`;
+    // Use v7 quote API - more reliable from server environments
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
     
-    console.log(`[MarketCap] Fetching for ${upperSymbol}`);
+    console.log(`[MarketCap] Fetching via v7 quote for ${upperSymbol}`);
     
     const response = await fetch(url, {
       headers: {
@@ -277,34 +277,17 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
     
     if (response.ok) {
       const data = await response.json();
-      const result = data?.quoteSummary?.result?.[0];
+      const result = data?.quoteResponse?.result?.[0];
       
       if (result) {
-        // Try price.marketCap.raw first (most reliable)
-        const priceMarketCap = result.price?.marketCap?.raw;
-        if (typeof priceMarketCap === 'number' && priceMarketCap > 0) {
-          console.log(`[MarketCap] Found via price module for ${upperSymbol}: ${priceMarketCap}`);
-          marketCapCache.set(upperSymbol, { data: priceMarketCap, timestamp: Date.now() });
-          return priceMarketCap;
+        const marketCap = result.marketCap;
+        if (typeof marketCap === 'number' && marketCap > 0) {
+          console.log(`[MarketCap] Found for ${upperSymbol}: ${marketCap}`);
+          marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
+          return marketCap;
         }
         
-        // Try summaryDetail.marketCap.raw
-        const summaryMarketCap = result.summaryDetail?.marketCap?.raw;
-        if (typeof summaryMarketCap === 'number' && summaryMarketCap > 0) {
-          console.log(`[MarketCap] Found via summaryDetail for ${upperSymbol}: ${summaryMarketCap}`);
-          marketCapCache.set(upperSymbol, { data: summaryMarketCap, timestamp: Date.now() });
-          return summaryMarketCap;
-        }
-        
-        // Try defaultKeyStatistics.marketCap.raw
-        const statsMarketCap = result.defaultKeyStatistics?.marketCap?.raw;
-        if (typeof statsMarketCap === 'number' && statsMarketCap > 0) {
-          console.log(`[MarketCap] Found via defaultKeyStatistics for ${upperSymbol}: ${statsMarketCap}`);
-          marketCapCache.set(upperSymbol, { data: statsMarketCap, timestamp: Date.now() });
-          return statsMarketCap;
-        }
-        
-        console.log(`[MarketCap] No valid marketCap in response for ${upperSymbol}`);
+        console.log(`[MarketCap] No valid marketCap in v7 response for ${upperSymbol}`);
       }
     } else {
       console.log(`[MarketCap] HTTP ${response.status} for ${upperSymbol}`);
