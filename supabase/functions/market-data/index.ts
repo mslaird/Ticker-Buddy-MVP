@@ -258,12 +258,15 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   // Check cache first
   const cached = marketCapCache.get(upperSymbol);
   if (cached && Date.now() - cached.timestamp < MARKET_CAP_CACHE_TTL_MS) {
+    console.log(`[MarketCap] Cache hit for ${upperSymbol}: ${cached.data}`);
     return cached.data;
   }
   
   try {
-    // Use quoteSummary endpoint with summaryDetail module which includes marketCap
-    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=summaryDetail`;
+    // Fetch all three modules in a single call for efficiency
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price,summaryDetail,defaultKeyStatistics`;
+    
+    console.log(`[MarketCap] Fetching for ${upperSymbol}`);
     
     const response = await fetch(url, {
       headers: {
@@ -274,43 +277,40 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
     
     if (response.ok) {
       const data = await response.json();
-      const summaryDetail = data?.quoteSummary?.result?.[0]?.summaryDetail;
+      const result = data?.quoteSummary?.result?.[0];
       
-      if (summaryDetail) {
-        // Market cap can be in 'marketCap' field with 'raw' value
-        const marketCapRaw = summaryDetail.marketCap?.raw;
-        if (typeof marketCapRaw === 'number' && marketCapRaw > 0) {
-          console.log(`Yahoo marketCap for ${upperSymbol}: ${marketCapRaw}`);
-          marketCapCache.set(upperSymbol, { data: marketCapRaw, timestamp: Date.now() });
-          return marketCapRaw;
+      if (result) {
+        // Try price.marketCap.raw first (most reliable)
+        const priceMarketCap = result.price?.marketCap?.raw;
+        if (typeof priceMarketCap === 'number' && priceMarketCap > 0) {
+          console.log(`[MarketCap] Found via price module for ${upperSymbol}: ${priceMarketCap}`);
+          marketCapCache.set(upperSymbol, { data: priceMarketCap, timestamp: Date.now() });
+          return priceMarketCap;
         }
-      }
-    }
-    
-    // Try fallback to price endpoint which also has marketCap
-    const priceUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`;
-    const priceResponse = await fetch(priceUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-    
-    if (priceResponse.ok) {
-      const priceData = await priceResponse.json();
-      const price = priceData?.quoteSummary?.result?.[0]?.price;
-      
-      if (price) {
-        const marketCapRaw = price.marketCap?.raw;
-        if (typeof marketCapRaw === 'number' && marketCapRaw > 0) {
-          console.log(`Yahoo marketCap (price module) for ${upperSymbol}: ${marketCapRaw}`);
-          marketCapCache.set(upperSymbol, { data: marketCapRaw, timestamp: Date.now() });
-          return marketCapRaw;
+        
+        // Try summaryDetail.marketCap.raw
+        const summaryMarketCap = result.summaryDetail?.marketCap?.raw;
+        if (typeof summaryMarketCap === 'number' && summaryMarketCap > 0) {
+          console.log(`[MarketCap] Found via summaryDetail for ${upperSymbol}: ${summaryMarketCap}`);
+          marketCapCache.set(upperSymbol, { data: summaryMarketCap, timestamp: Date.now() });
+          return summaryMarketCap;
         }
+        
+        // Try defaultKeyStatistics.marketCap.raw
+        const statsMarketCap = result.defaultKeyStatistics?.marketCap?.raw;
+        if (typeof statsMarketCap === 'number' && statsMarketCap > 0) {
+          console.log(`[MarketCap] Found via defaultKeyStatistics for ${upperSymbol}: ${statsMarketCap}`);
+          marketCapCache.set(upperSymbol, { data: statsMarketCap, timestamp: Date.now() });
+          return statsMarketCap;
+        }
+        
+        console.log(`[MarketCap] No valid marketCap in response for ${upperSymbol}`);
       }
+    } else {
+      console.log(`[MarketCap] HTTP ${response.status} for ${upperSymbol}`);
     }
   } catch (error) {
-    console.error(`Yahoo marketCap fetch error for ${upperSymbol}:`, error);
+    console.error(`[MarketCap] Fetch error for ${upperSymbol}:`, error);
   }
   
   // Cache null result to avoid repeated failed requests

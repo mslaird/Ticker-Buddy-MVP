@@ -321,12 +321,6 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
                 isPro={isPro}
                 isUnavailable={marketCap === null && !advancedMetrics.isLoading}
               />
-              {/* DEBUG ONLY - REMOVE BEFORE PRODUCTION */}
-              <p className="text-[10px] text-muted-foreground/50 mt-1 font-mono">
-                {marketCap === undefined || marketCap === null 
-                  ? 'Debug: marketCap = undefined' 
-                  : 'Debug: marketCap received'}
-              </p>
             </div>
           </div>
 
