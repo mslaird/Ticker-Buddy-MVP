@@ -251,7 +251,58 @@ function sleep(ms: number): Promise<void> {
 const marketCapCache: Map<string, { data: number | null; timestamp: number }> = new Map();
 const MARKET_CAP_CACHE_TTL_MS = 60000; // 1 minute for market cap
 
-// Fetch market cap from Yahoo v7 quote API (server-side only, more reliable)
+// Yahoo crumb/cookie cache for authenticated requests
+let yahooCrumbData: { crumb: string; cookie: string; timestamp: number } | null = null;
+const CRUMB_TTL_MS = 300000; // 5 minutes
+
+// Get Yahoo crumb and cookies for authenticated API access
+async function getYahooCrumb(): Promise<{ crumb: string; cookie: string } | null> {
+  if (yahooCrumbData && Date.now() - yahooCrumbData.timestamp < CRUMB_TTL_MS) {
+    return { crumb: yahooCrumbData.crumb, cookie: yahooCrumbData.cookie };
+  }
+  
+  try {
+    // First, get cookies by visiting Yahoo Finance
+    const initResponse = await fetch('https://fc.yahoo.com/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+    
+    const setCookieHeader = initResponse.headers.get('set-cookie');
+    if (!setCookieHeader) {
+      return null;
+      return null;
+    }
+    
+    // Extract A1, A3, A1S cookies
+    const cookies = setCookieHeader;
+    
+    // Get crumb using the cookies
+    const crumbResponse = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cookie': cookies,
+      },
+    });
+    
+    if (crumbResponse.ok) {
+      const crumb = await crumbResponse.text();
+      if (crumb && crumb.length > 0 && !crumb.includes('error')) {
+        yahooCrumbData = { crumb, cookie: cookies, timestamp: Date.now() };
+        yahooCrumbData = { crumb, cookie: cookies, timestamp: Date.now() };
+        return { crumb, cookie: cookies };
+      }
+    }
+    // Failed to get crumb
+  } catch (error) {
+    // Crumb error
+  }
+  
+  return null;
+}
+
+// Fetch market cap using Yahoo API with crumb authentication
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const upperSymbol = symbol.toUpperCase().trim();
   
@@ -261,20 +312,23 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
     return cached.data;
   }
   
-  // Use v7 quote API - returns marketCap directly
-  const endpoints = [
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
-  ];
+  // Try to get crumb for authenticated access
+  const crumbData = await getYahooCrumb();
   
-  for (const url of endpoints) {
+  if (crumbData) {
     try {
+      // Use v7 quote with crumb
+      const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}&crumb=${encodeURIComponent(crumbData.crumb)}`;
+      
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Cookie': crumbData.cookie,
         },
       });
+      
+      
       
       if (response.ok) {
         const data = await response.json();
@@ -284,12 +338,13 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
           const marketCap = result.marketCap;
           if (typeof marketCap === 'number' && marketCap > 0) {
             marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
+            marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
             return marketCap;
           }
         }
       }
     } catch (error) {
-      // Continue to next endpoint
+      // Crumb fetch error
     }
   }
   
