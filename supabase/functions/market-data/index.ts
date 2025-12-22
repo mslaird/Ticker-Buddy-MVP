@@ -272,7 +272,6 @@ async function getYahooCrumb(): Promise<{ crumb: string; cookie: string } | null
     const setCookieHeader = initResponse.headers.get('set-cookie');
     if (!setCookieHeader) {
       return null;
-      return null;
     }
     
     // Extract A1, A3, A1S cookies
@@ -290,13 +289,11 @@ async function getYahooCrumb(): Promise<{ crumb: string; cookie: string } | null
       const crumb = await crumbResponse.text();
       if (crumb && crumb.length > 0 && !crumb.includes('error')) {
         yahooCrumbData = { crumb, cookie: cookies, timestamp: Date.now() };
-        yahooCrumbData = { crumb, cookie: cookies, timestamp: Date.now() };
         return { crumb, cookie: cookies };
       }
     }
-    // Failed to get crumb
-  } catch (error) {
-    // Crumb error
+  } catch (_error) {
+    // Failed to get crumb - continue silently
   }
   
   return null;
@@ -338,13 +335,12 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
           const marketCap = result.marketCap;
           if (typeof marketCap === 'number' && marketCap > 0) {
             marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
-            marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
             return marketCap;
           }
         }
       }
-    } catch (error) {
-      // Crumb fetch error
+    } catch (_error) {
+      // Market cap fetch failed - continue silently
     }
   }
   
@@ -372,8 +368,6 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
       }
       
       try {
-        console.log(`Yahoo chart fetch attempt ${attempt + 1} for ${upperSymbol}`);
-        
         const response = await fetch(endpoint, {
           headers: {
             'Accept': 'application/json',
@@ -400,9 +394,7 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
             }
             
             if (typeof price === 'number') {
-              console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, prevClose=${previousClose}, change=${change?.toFixed(2)}, changePct=${changePct?.toFixed(2)}%`);
-              
-              return { 
+              return {
                 data: {
                   regularMarketPrice: price,
                   regularMarketChange: change,
@@ -416,23 +408,18 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
             }
           }
           
-          // No valid chart data
-          console.log(`Yahoo chart no valid data for ${upperSymbol}`);
           return { data: null, networkError: false };
         }
-        
-        console.log(`Yahoo chart HTTP ${response.status} for ${upperSymbol}`);
         
         if (response.status === 429) {
           await sleep(1500);
         }
-      } catch (error) {
-        console.error(`Yahoo chart network error for ${upperSymbol}:`, error);
+      } catch (_error) {
+        // Network error - continue to next attempt
       }
     }
   }
   
-  console.log(`Yahoo chart all attempts failed for ${upperSymbol}`);
   return { data: null, networkError: true };
 }
 
@@ -454,7 +441,6 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
   // Extract price
   const price = result.regularMarketPrice;
   if (price === null || price === undefined || typeof price !== 'number') {
-    console.log(`Yahoo no valid price for ${upperSymbol}`);
     yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
     return { quote: null, networkError: false };
   }
@@ -470,8 +456,6 @@ async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | nul
   if (typeof result.regularMarketChangePercent === 'number' && !Number.isNaN(result.regularMarketChangePercent)) {
     changePct = result.regularMarketChangePercent;
   }
-  
-  console.log(`Yahoo quote for ${upperSymbol}: price=${price}, change=${change}, changePct=${changePct}`);
 
   const quote: QuoteData = {
     price: Math.round(price * 100) / 100,
