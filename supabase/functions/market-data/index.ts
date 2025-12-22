@@ -247,26 +247,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Fetch using Yahoo v7 quote API for accurate 52-week data and market cap
+// Fetch using Yahoo chart API (more reliable from server environments)
 async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; networkError: boolean }> {
   const upperSymbol = symbol.toUpperCase().trim();
   
-  // Use v7 quote API for accurate 52-week high/low and market cap
-  const quoteEndpoints = [
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
+  // Use v8 chart API - more reliable from server environments
+  const endpoints = [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=1d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upperSymbol)}?interval=1d&range=1d`,
   ];
   
   const retryDelays = [0, 500, 1000];
   
-  for (const endpoint of quoteEndpoints) {
+  for (const endpoint of endpoints) {
     for (let attempt = 0; attempt < retryDelays.length; attempt++) {
       if (attempt > 0) {
         await sleep(retryDelays[attempt]);
       }
       
       try {
-        console.log(`Yahoo quote fetch attempt ${attempt + 1} for ${upperSymbol}`);
+        console.log(`Yahoo chart fetch attempt ${attempt + 1} for ${upperSymbol}`);
         
         const response = await fetch(endpoint, {
           headers: {
@@ -277,46 +277,56 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
 
         if (response.ok) {
           const data = await response.json();
-          const quote = data?.quoteResponse?.result?.[0];
+          const chart = data?.chart?.result?.[0];
           
-          if (quote) {
-            const price = quote.regularMarketPrice;
+          if (chart && chart.meta) {
+            const meta = chart.meta;
+            const price = meta.regularMarketPrice;
+            const previousClose = meta.chartPreviousClose || meta.previousClose;
+            
+            // Compute change from previousClose (Yahoo's standard approach)
+            let change: number | null = null;
+            let changePct: number | null = null;
+            
+            if (typeof price === 'number' && typeof previousClose === 'number' && previousClose > 0) {
+              change = price - previousClose;
+              changePct = (change / previousClose) * 100;
+            }
             
             if (typeof price === 'number') {
-              console.log(`Yahoo quote success for ${upperSymbol}: price=${price}, 52wHigh=${quote.fiftyTwoWeekHigh}, 52wLow=${quote.fiftyTwoWeekLow}, marketCap=${quote.marketCap}`);
+              console.log(`Yahoo chart success for ${upperSymbol}: price=${price}, prevClose=${previousClose}, change=${change?.toFixed(2)}, changePct=${changePct?.toFixed(2)}%`);
               
               return { 
                 data: {
                   regularMarketPrice: price,
-                  regularMarketChange: quote.regularMarketChange ?? null,
-                  regularMarketChangePercent: quote.regularMarketChangePercent ?? null,
-                  fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh ?? null,
-                  fiftyTwoWeekLow: quote.fiftyTwoWeekLow ?? null,
-                  regularMarketVolume: quote.regularMarketVolume ?? null,
-                  marketCap: quote.marketCap ?? null,
+                  regularMarketChange: change,
+                  regularMarketChangePercent: changePct,
+                  fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
+                  fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
+                  regularMarketVolume: meta.regularMarketVolume,
                 },
                 networkError: false 
               };
             }
           }
           
-          // No valid quote data
-          console.log(`Yahoo quote no valid data for ${upperSymbol}`);
+          // No valid chart data
+          console.log(`Yahoo chart no valid data for ${upperSymbol}`);
           return { data: null, networkError: false };
         }
         
-        console.log(`Yahoo quote HTTP ${response.status} for ${upperSymbol}`);
+        console.log(`Yahoo chart HTTP ${response.status} for ${upperSymbol}`);
         
         if (response.status === 429) {
           await sleep(1500);
         }
       } catch (error) {
-        console.error(`Yahoo quote network error for ${upperSymbol}:`, error);
+        console.error(`Yahoo chart network error for ${upperSymbol}:`, error);
       }
     }
   }
   
-  console.log(`Yahoo quote all attempts failed for ${upperSymbol}`);
+  console.log(`Yahoo chart all attempts failed for ${upperSymbol}`);
   return { data: null, networkError: true };
 }
 
