@@ -1,3 +1,10 @@
+// ============================================================================
+// STABLE BASELINE — DO NOT MODIFY WITHOUT REVIEW
+// ============================================================================
+// This component shares layout logic with OverlayWidget.tsx.
+// See CHECKPOINTS.md and src/components/overlay/README.md for layout rules.
+// ============================================================================
+
 import { Ticker } from '@/hooks/useTickers';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
