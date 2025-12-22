@@ -97,6 +97,9 @@ function BlurredMetric({ label, value, isPro }: { label: string; value: string; 
 export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: AssetDetailDrawerProps) {
   const navigate = useNavigate();
   
+  // Hooks must be called unconditionally (before any early returns)
+  const fiftyTwoWeek = use52WeekData(ticker?.symbol ?? null, ticker?.asset_type ?? 'stock');
+
   if (!ticker) return null;
 
   const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
@@ -153,9 +156,6 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
   const currentPrice = quote?.price ?? 100;
   const chartData = generateMockChartData(currentPrice, ticker.symbol);
   const isPositive = (quote?.changePct ?? 0) >= 0;
-
-  // Fetch real 52-week data (isolated, does not affect price/quote logic)
-  const fiftyTwoWeek = use52WeekData(ticker.symbol, ticker.asset_type);
 
   // Generate mock pro metrics for volume/market cap (non-52-week)
   const seed = ticker.symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
