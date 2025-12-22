@@ -21,7 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Loader2, ChevronDown, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
+import { Loader2, ChevronDown, CheckCircle2, AlertCircle, HelpCircle, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AddTickerModalProps {
@@ -94,6 +94,9 @@ export function AddTickerModal({
   const [assetTypeManuallySet, setAssetTypeManuallySet] = useState(false);
   const [displayNameManuallySet, setDisplayNameManuallySet] = useState(false);
   
+  // Track if display name was auto-filled (for UI indicator)
+  const [displayNameAutoFilled, setDisplayNameAutoFilled] = useState(false);
+  
   // Track previous symbol to detect significant changes
   const previousSymbolRef = useRef<string>('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +114,7 @@ export function AddTickerModal({
         // Start with overrides as false - will be set to true if user changes them
         setAssetTypeManuallySet(false);
         setDisplayNameManuallySet(false);
+        setDisplayNameAutoFilled(false);
         setDetection(null);
         setShowTypeOverride(true);
       } else {
@@ -120,6 +124,7 @@ export function AddTickerModal({
         previousSymbolRef.current = '';
         setAssetTypeManuallySet(false);
         setDisplayNameManuallySet(false);
+        setDisplayNameAutoFilled(false);
         setDetection(null);
         setShowTypeOverride(false);
       }
@@ -161,7 +166,14 @@ export function AddTickerModal({
         // Auto-apply display name if not manually set
         if (!displayNameManuallySet) {
           // Always update display name when symbol changes - either to detected name or empty
-          setDisplayName(result.displayName || '');
+          const newName = result.displayName || '';
+          setDisplayName(newName);
+          // Track that name was auto-filled (only if we got a name)
+          setDisplayNameAutoFilled(!!newName);
+          
+          if (process.env.NODE_ENV === 'development' && result.displayName) {
+            console.log(`[AddTickerModal] Auto-filled displayName: "${result.displayName}", source: ${result.sourceUsed}`);
+          }
         }
         
         // Show override dropdown if low confidence
@@ -193,6 +205,7 @@ export function AddTickerModal({
     if (symbolChangedSignificantly) {
       setAssetTypeManuallySet(false);
       setDisplayNameManuallySet(false);
+      setDisplayNameAutoFilled(false);
       // Clear display name immediately when switching symbols (will be set by detection)
       setDisplayName('');
     }
@@ -225,6 +238,7 @@ export function AddTickerModal({
   const handleDisplayNameChange = (value: string) => {
     setDisplayName(value);
     setDisplayNameManuallySet(true);
+    setDisplayNameAutoFilled(false); // User edited, so no longer auto-filled
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -415,9 +429,18 @@ export function AddTickerModal({
           </Collapsible>
 
           <div className="space-y-2">
-            <Label htmlFor="displayName" className="text-foreground">
-              Display Name <span className="text-muted-foreground text-sm">(optional)</span>
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="displayName" className="text-foreground">
+                Display Name <span className="text-muted-foreground text-sm">(optional)</span>
+              </Label>
+              {/* Auto-filled indicator */}
+              {displayNameAutoFilled && displayName && (
+                <span className="inline-flex items-center gap-1 text-xs text-green-500">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-filled
+                </span>
+              )}
+            </div>
             <Input
               id="displayName"
               placeholder="e.g., Apple Inc."
