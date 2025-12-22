@@ -426,6 +426,12 @@ export function AddTickerModal({
               className="bg-input border-border text-foreground placeholder:text-muted-foreground"
               maxLength={50}
             />
+            {/* Show helper text when detection ran but no name was found */}
+            {detection && !detecting && !displayName && !displayNameManuallySet && symbol.trim() && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Name unavailable (optional). You can leave blank or type your own.
+              </p>
+            )}
           </div>
 
           {error && (
