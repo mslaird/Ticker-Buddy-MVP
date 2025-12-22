@@ -1,12 +1,11 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Minus, Lock, Crown, Sparkles, Info } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Lock, Crown, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Quote } from '@/hooks/useMarketData';
 import { useNavigate } from 'react-router-dom';
-import { use52WeekData } from '@/hooks/use52WeekData';
+
 interface Ticker {
   id: string;
   symbol: string;
@@ -97,9 +96,6 @@ function BlurredMetric({ label, value, isPro }: { label: string; value: string; 
 export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: AssetDetailDrawerProps) {
   const navigate = useNavigate();
   
-  // Hooks must be called unconditionally (before any early returns)
-  const fiftyTwoWeek = use52WeekData(ticker?.symbol ?? null, ticker?.asset_type ?? 'stock');
-
   if (!ticker) return null;
 
   const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
@@ -157,20 +153,14 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
   const chartData = generateMockChartData(currentPrice, ticker.symbol);
   const isPositive = (quote?.changePct ?? 0) >= 0;
 
-  // Generate mock pro metrics for volume/market cap (non-52-week)
+  // Generate mock pro metrics based on price/symbol
   const seed = ticker.symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const high52w = (currentPrice * (1.2 + (seed % 30) / 100)).toFixed(2);
+  const low52w = (currentPrice * (0.6 + (seed % 20) / 100)).toFixed(2);
   const volume = ((seed * 12345) % 50000000 + 1000000).toLocaleString();
   const marketCap = ticker.asset_type === 'crypto' 
     ? `${((seed * 987) % 500 + 10).toFixed(1)}B` 
     : `$${((seed * 654) % 2000 + 50).toFixed(1)}B`;
-
-  // Format 52-week values
-  const format52Week = (value: number | null) => {
-    if (value === null) return '—';
-    return value >= 1000 
-      ? value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : value.toFixed(2);
-  };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -263,68 +253,18 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
               </p>
             </div>
             <div className="p-4 rounded-xl bg-background/40 border border-border/30 space-y-1">
-              {/* 52-Week High */}
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  {ticker.asset_type === 'crypto' ? 'High (Range)' : '52-Week High'}
-                  {ticker.asset_type !== 'crypto' && fiftyTwoWeek.source === 'chart' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3 w-3 text-muted-foreground/60 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          Computed from 1Y daily candles
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  {!isPro && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  <span className={`text-sm font-mono ${!isPro ? 'blur-sm select-none' : ''}`}>
-                    {ticker.asset_type === 'crypto' && quote?.highRange 
-                      ? `$${formatLargeNumber(quote.highRange)}`
-                      : fiftyTwoWeek.loading 
-                        ? '...' 
-                        : `$${format52Week(fiftyTwoWeek.high52w)}`
-                    }
-                  </span>
-                </div>
-              </div>
+              <BlurredMetric 
+                label={ticker.asset_type === 'crypto' ? 'High (Range)' : '52-Week High'} 
+                value={`$${ticker.asset_type === 'crypto' && quote?.highRange ? formatLargeNumber(quote.highRange) : high52w}`} 
+                isPro={isPro} 
+              />
               <div className="border-t border-border/30" />
-              
-              {/* 52-Week Low */}
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  {ticker.asset_type === 'crypto' ? 'Low (Range)' : '52-Week Low'}
-                  {ticker.asset_type !== 'crypto' && fiftyTwoWeek.source === 'chart' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3 w-3 text-muted-foreground/60 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          Computed from 1Y daily candles
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  {!isPro && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  <span className={`text-sm font-mono ${!isPro ? 'blur-sm select-none' : ''}`}>
-                    {ticker.asset_type === 'crypto' && quote?.lowRange 
-                      ? `$${formatLargeNumber(quote.lowRange)}`
-                      : fiftyTwoWeek.loading 
-                        ? '...' 
-                        : `$${format52Week(fiftyTwoWeek.low52w)}`
-                    }
-                  </span>
-                </div>
-              </div>
+              <BlurredMetric 
+                label={ticker.asset_type === 'crypto' ? 'Low (Range)' : '52-Week Low'} 
+                value={`$${ticker.asset_type === 'crypto' && quote?.lowRange ? formatLargeNumber(quote.lowRange) : low52w}`} 
+                isPro={isPro} 
+              />
               <div className="border-t border-border/30" />
-              
               <BlurredMetric 
                 label={ticker.asset_type === 'crypto' ? '24h Volume' : 'Volume'} 
                 value={ticker.asset_type === 'crypto' && quote?.volume24h ? `$${formatLargeNumber(quote.volume24h)}` : volume} 
