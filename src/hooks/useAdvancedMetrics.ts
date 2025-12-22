@@ -17,7 +17,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchAdvancedMetrics, AdvancedMetrics } from '@/lib/fetchAdvancedMetrics';
-import { fetchMarketCapFallback } from '@/lib/fetchMarketCapFallback';
 
 export interface UseAdvancedMetricsOptions {
   symbol: string;
@@ -82,18 +81,8 @@ export function useAdvancedMetrics({
       setError(result.error);
       setData(null);
     } else if (result.data) {
-      let finalData = result.data;
-
-      // Fallback: if marketCap is missing for stocks/ETFs, fetch from Yahoo quoteSummary
-      if (finalData.marketCap === null && (assetType === 'stock' || assetType === 'etf')) {
-        const fallbackMarketCap = await fetchMarketCapFallback(normalizedSymbol);
-        if (fallbackMarketCap !== null) {
-          finalData = { ...finalData, marketCap: fallbackMarketCap };
-        }
-      }
-
-      setData(finalData);
-      metricsCache.set(cacheKey, { data: finalData, timestamp: Date.now() });
+      setData(result.data);
+      metricsCache.set(cacheKey, { data: result.data, timestamp: Date.now() });
     }
 
     setIsLoading(false);

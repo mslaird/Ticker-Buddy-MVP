@@ -251,49 +251,47 @@ function sleep(ms: number): Promise<void> {
 const marketCapCache: Map<string, { data: number | null; timestamp: number }> = new Map();
 const MARKET_CAP_CACHE_TTL_MS = 60000; // 1 minute for market cap
 
-// Fetch market cap from Yahoo v7 quote API (more reliable than quoteSummary)
+// Fetch market cap from Yahoo v10 quoteSummary API (server-side only)
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const upperSymbol = symbol.toUpperCase().trim();
   
   // Check cache first
   const cached = marketCapCache.get(upperSymbol);
   if (cached && Date.now() - cached.timestamp < MARKET_CAP_CACHE_TTL_MS) {
-    console.log(`[MarketCap] Cache hit for ${upperSymbol}: ${cached.data}`);
     return cached.data;
   }
   
-  try {
-    // Use v7 quote API - more reliable from server environments
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`;
-    
-    console.log(`[MarketCap] Fetching via v7 quote for ${upperSymbol}`);
-    
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const result = data?.quoteResponse?.result?.[0];
+  // Try multiple endpoints in order of reliability
+  const endpoints = [
+    `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`,
+    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`,
+  ];
+  
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
       
-      if (result) {
-        const marketCap = result.marketCap;
-        if (typeof marketCap === 'number' && marketCap > 0) {
-          console.log(`[MarketCap] Found for ${upperSymbol}: ${marketCap}`);
-          marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
-          return marketCap;
-        }
+      if (response.ok) {
+        const data = await response.json();
+        const priceData = data?.quoteSummary?.result?.[0]?.price;
         
-        console.log(`[MarketCap] No valid marketCap in v7 response for ${upperSymbol}`);
+        if (priceData) {
+          const marketCap = priceData.marketCap?.raw;
+          if (typeof marketCap === 'number' && marketCap > 0) {
+            marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
+            return marketCap;
+          }
+        }
       }
-    } else {
-      console.log(`[MarketCap] HTTP ${response.status} for ${upperSymbol}`);
+    } catch (error) {
+      // Continue to next endpoint
     }
-  } catch (error) {
-    console.error(`[MarketCap] Fetch error for ${upperSymbol}:`, error);
   }
   
   // Cache null result to avoid repeated failed requests
