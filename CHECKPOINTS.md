@@ -50,3 +50,29 @@ This file tracks stable points in the codebase that should not regress.
 - Market cap is cached separately (1 minute TTL) to avoid repeated requests
 - Core quote/price/% fetching remains UNTOUCHED (useMarketData.ts and market-data edge function logic preserved)
 - Hook is called unconditionally with `enabled` flag to respect Rules of Hooks
+
+---
+
+## Checkpoint: Advanced Metrics stable (Market Cap server-side, CORS-safe)
+
+**Date:** 2025-12-22  
+
+**What was fixed:**  
+
+- Market Cap now fetched **server-side** via Supabase edge function (no client-side Yahoo calls)
+
+- Market Cap now returns in `/market-data` response and renders in Advanced Metrics UI
+
+**Must NOT regress:**  
+
+- No client-side requests to `query2.finance.yahoo.com` (CORS risk)
+
+- `/market-data` returns `marketCap` for stocks/ETFs when available
+
+- UI shows Market Cap for AAPL/BMNR correctly
+
+**Relevant files:**  
+
+- `supabase/functions/market-data/*` (edge function)  
+
+- `src/components/.../AssetDetailDrawer.tsx` (Advanced Metrics consumer)
