@@ -40,6 +40,14 @@ interface ResolveResult {
   sourceUsed: string;
 }
 
+// Normalize symbol: trim, uppercase, keep valid chars (A-Z, 0-9, dot, dash)
+function normalizeSymbol(raw: string): string {
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9.-]/g, '');
+}
+
 // Validate symbol format locally
 function validateSymbolFormat(symbol: string, assetType: string): { valid: boolean; reason?: string } {
   const trimmed = symbol.trim().toUpperCase();
@@ -81,38 +89,51 @@ export function AddTickerModal({
   const [detecting, setDetecting] = useState(false);
   const [detection, setDetection] = useState<ResolveResult | null>(null);
   const [showTypeOverride, setShowTypeOverride] = useState(false);
-  const [userOverrodeType, setUserOverrodeType] = useState(false);
+  
+  // Manual override tracking
+  const [assetTypeManuallySet, setAssetTypeManuallySet] = useState(false);
+  const [displayNameManuallySet, setDisplayNameManuallySet] = useState(false);
+  
+  // Track previous symbol to detect significant changes
+  const previousSymbolRef = useRef<string>('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isEditing = !!editingTicker;
 
   // Reset state when modal opens/closes or editing ticker changes
   useEffect(() => {
-    if (editingTicker) {
-      setSymbol(editingTicker.symbol);
-      setAssetType(editingTicker.asset_type);
-      setDisplayName(editingTicker.display_name || '');
-      setUserOverrodeType(true); // When editing, treat as user override
-      setDetection(null);
-      setShowTypeOverride(true);
-    } else {
-      setSymbol('');
-      setAssetType('stock');
-      setDisplayName('');
-      setUserOverrodeType(false);
-      setDetection(null);
-      setShowTypeOverride(false);
+    if (open) {
+      if (editingTicker) {
+        setSymbol(editingTicker.symbol);
+        setAssetType(editingTicker.asset_type);
+        setDisplayName(editingTicker.display_name || '');
+        previousSymbolRef.current = editingTicker.symbol;
+        // Start with overrides as false - will be set to true if user changes them
+        setAssetTypeManuallySet(false);
+        setDisplayNameManuallySet(false);
+        setDetection(null);
+        setShowTypeOverride(true);
+      } else {
+        setSymbol('');
+        setAssetType('stock');
+        setDisplayName('');
+        previousSymbolRef.current = '';
+        setAssetTypeManuallySet(false);
+        setDisplayNameManuallySet(false);
+        setDetection(null);
+        setShowTypeOverride(false);
+      }
+      setError('');
+      setDetecting(false);
     }
-    setError('');
-    setDetecting(false);
   }, [editingTicker, open]);
 
   // Debounced symbol resolution
   const resolveSymbol = useCallback(async (symbolToResolve: string) => {
-    const trimmed = symbolToResolve.trim().toUpperCase();
+    const normalized = normalizeSymbol(symbolToResolve);
     
-    // Clear detection if symbol is too short
-    if (trimmed.length < 1) {
+    // Clear detection if symbol is empty
+    if (normalized.length < 1) {
       setDetection(null);
       setDetecting(false);
       return;
@@ -122,7 +143,7 @@ export function AddTickerModal({
     
     try {
       const { data, error: resolveError } = await supabase.functions.invoke('market-data', {
-        body: { action: 'resolve', symbol: trimmed },
+        body: { action: 'resolve', symbol: normalized },
       });
       
       if (resolveError) {
@@ -132,14 +153,15 @@ export function AddTickerModal({
         const result = data as ResolveResult;
         setDetection(result);
         
-        // Auto-fill asset type and display name if user hasn't overridden
-        if (!userOverrodeType) {
+        // Auto-apply asset type if not manually set AND confidence is medium or high
+        if (!assetTypeManuallySet && (result.confidence === 'high' || result.confidence === 'medium')) {
           setAssetType(result.detectedType);
         }
         
-        // Auto-fill display name if available and empty
-        if (result.displayName && !displayName) {
-          setDisplayName(result.displayName);
+        // Auto-apply display name if not manually set
+        if (!displayNameManuallySet) {
+          // Always update display name when symbol changes - either to detected name or empty
+          setDisplayName(result.displayName || '');
         }
         
         // Show override dropdown if low confidence
@@ -157,12 +179,26 @@ export function AddTickerModal({
     } finally {
       setDetecting(false);
     }
-  }, [userOverrodeType, displayName]);
+  }, [assetTypeManuallySet, displayNameManuallySet]);
 
   // Handle symbol input change with debounce
   const handleSymbolChange = (value: string) => {
-    const uppercased = value.toUpperCase();
-    setSymbol(uppercased);
+    const normalized = normalizeSymbol(value);
+    
+    // Check if symbol changed significantly (different symbol entirely)
+    const previousNormalized = normalizeSymbol(previousSymbolRef.current);
+    const symbolChangedSignificantly = previousNormalized !== normalized && previousNormalized.length > 0 && normalized.length > 0;
+    
+    // Reset manual override flags when symbol changes to a different symbol
+    if (symbolChangedSignificantly) {
+      setAssetTypeManuallySet(false);
+      setDisplayNameManuallySet(false);
+      // Clear display name immediately when switching symbols (will be set by detection)
+      setDisplayName('');
+    }
+    
+    setSymbol(normalized);
+    previousSymbolRef.current = normalized;
     setError('');
     
     // Clear previous debounce
@@ -170,28 +206,32 @@ export function AddTickerModal({
       clearTimeout(debounceRef.current);
     }
     
-    // Reset detection when symbol changes
-    if (!userOverrodeType) {
-      setDetection(null);
-    }
+    // Clear detection while typing
+    setDetection(null);
     
-    // Debounce resolution
+    // Debounce resolution (300ms for responsive feel)
     debounceRef.current = setTimeout(() => {
-      resolveSymbol(uppercased);
-    }, 400);
+      resolveSymbol(normalized);
+    }, 300);
   };
 
   // Handle manual asset type override
   const handleAssetTypeChange = (value: 'stock' | 'crypto' | 'etf') => {
     setAssetType(value);
-    setUserOverrodeType(true);
+    setAssetTypeManuallySet(true);
+  };
+
+  // Handle manual display name change
+  const handleDisplayNameChange = (value: string) => {
+    setDisplayName(value);
+    setDisplayNameManuallySet(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const trimmedSymbol = symbol.trim().toUpperCase();
+    const trimmedSymbol = normalizeSymbol(symbol);
     
     // Local format validation
     const formatCheck = validateSymbolFormat(trimmedSymbol, assetType);
@@ -382,7 +422,7 @@ export function AddTickerModal({
               id="displayName"
               placeholder="e.g., Apple Inc."
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(e) => handleDisplayNameChange(e.target.value)}
               className="bg-input border-border text-foreground placeholder:text-muted-foreground"
               maxLength={50}
             />
