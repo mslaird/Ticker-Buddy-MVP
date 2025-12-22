@@ -35,3 +35,5 @@ This file tracks stable points in the codebase that should not regress.
 | Compact OFF | Small | $88,328.00 | Full display (no ellipsis) |
 | Compact OFF | Medium | $88,328.00 | Full display (no ellipsis) |
 | Compact OFF | Large | $88,328.00 | Full display (no ellipsis) |
+
+- ✅ Branch check: advanced-metrics verified on 2025-12-22 (no functional changes)
