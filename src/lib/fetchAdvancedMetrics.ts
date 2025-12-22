@@ -61,6 +61,9 @@ export async function fetchAdvancedMetrics(
 
     const quote = quotes[0];
 
+    // TEMP DEBUG — REMOVE AFTER VERIFICATION
+    console.log('[MarketCap Debug] Raw quote response for', upperSymbol, ':', JSON.stringify(quote, null, 2));
+
     // Extract 52-week high/low from the quote's highRange/lowRange fields
     // These are populated from Yahoo's fiftyTwoWeekHigh/fiftyTwoWeekLow or CoinGecko's ATH/ATL
     const yearHigh = typeof quote.highRange === 'number' ? quote.highRange : null;
