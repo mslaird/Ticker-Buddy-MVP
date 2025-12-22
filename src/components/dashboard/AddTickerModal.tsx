@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Ticker } from '@/hooks/useTickers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Loader2, ChevronDown, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AddTickerModalProps {
@@ -25,6 +30,14 @@ interface AddTickerModalProps {
   onSubmit: (symbol: string, assetType: 'stock' | 'crypto' | 'etf', displayName?: string) => Promise<{ error: Error | null }>;
   editingTicker?: Ticker | null;
   onUpdate?: (id: string, updates: Partial<Pick<Ticker, 'symbol' | 'asset_type' | 'display_name'>>) => Promise<{ error: Error | null }>;
+}
+
+interface ResolveResult {
+  canonicalSymbol: string;
+  detectedType: 'stock' | 'etf' | 'crypto';
+  displayName: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  sourceUsed: string;
 }
 
 // Validate symbol format locally
@@ -63,21 +76,116 @@ export function AddTickerModal({
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Auto-detection state
+  const [detecting, setDetecting] = useState(false);
+  const [detection, setDetection] = useState<ResolveResult | null>(null);
+  const [showTypeOverride, setShowTypeOverride] = useState(false);
+  const [userOverrodeType, setUserOverrodeType] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isEditing = !!editingTicker;
 
+  // Reset state when modal opens/closes or editing ticker changes
   useEffect(() => {
     if (editingTicker) {
       setSymbol(editingTicker.symbol);
       setAssetType(editingTicker.asset_type);
       setDisplayName(editingTicker.display_name || '');
+      setUserOverrodeType(true); // When editing, treat as user override
+      setDetection(null);
+      setShowTypeOverride(true);
     } else {
       setSymbol('');
       setAssetType('stock');
       setDisplayName('');
+      setUserOverrodeType(false);
+      setDetection(null);
+      setShowTypeOverride(false);
     }
     setError('');
+    setDetecting(false);
   }, [editingTicker, open]);
+
+  // Debounced symbol resolution
+  const resolveSymbol = useCallback(async (symbolToResolve: string) => {
+    const trimmed = symbolToResolve.trim().toUpperCase();
+    
+    // Clear detection if symbol is too short
+    if (trimmed.length < 1) {
+      setDetection(null);
+      setDetecting(false);
+      return;
+    }
+    
+    setDetecting(true);
+    
+    try {
+      const { data, error: resolveError } = await supabase.functions.invoke('market-data', {
+        body: { action: 'resolve', symbol: trimmed },
+      });
+      
+      if (resolveError) {
+        console.warn('[AddTickerModal] Symbol resolution failed:', resolveError);
+        setDetection(null);
+      } else if (data) {
+        const result = data as ResolveResult;
+        setDetection(result);
+        
+        // Auto-fill asset type and display name if user hasn't overridden
+        if (!userOverrodeType) {
+          setAssetType(result.detectedType);
+        }
+        
+        // Auto-fill display name if available and empty
+        if (result.displayName && !displayName) {
+          setDisplayName(result.displayName);
+        }
+        
+        // Show override dropdown if low confidence
+        if (result.confidence === 'low') {
+          setShowTypeOverride(true);
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AddTickerModal] Resolved:', result);
+        }
+      }
+    } catch (err) {
+      console.warn('[AddTickerModal] Symbol resolution error:', err);
+      setDetection(null);
+    } finally {
+      setDetecting(false);
+    }
+  }, [userOverrodeType, displayName]);
+
+  // Handle symbol input change with debounce
+  const handleSymbolChange = (value: string) => {
+    const uppercased = value.toUpperCase();
+    setSymbol(uppercased);
+    setError('');
+    
+    // Clear previous debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // Reset detection when symbol changes
+    if (!userOverrodeType) {
+      setDetection(null);
+    }
+    
+    // Debounce resolution
+    debounceRef.current = setTimeout(() => {
+      resolveSymbol(uppercased);
+    }, 400);
+  };
+
+  // Handle manual asset type override
+  const handleAssetTypeChange = (value: 'stock' | 'crypto' | 'etf') => {
+    setAssetType(value);
+    setUserOverrodeType(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +265,59 @@ export function AddTickerModal({
     setLoading(false);
   };
 
+  // Detection status display
+  const renderDetectionStatus = () => {
+    if (detecting) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Detecting asset type...</span>
+        </div>
+      );
+    }
+    
+    if (!detection || !symbol.trim()) {
+      return null;
+    }
+    
+    const typeLabels: Record<string, string> = {
+      stock: 'Stock',
+      etf: 'ETF',
+      crypto: 'Crypto',
+    };
+    
+    const confidenceConfig = {
+      high: {
+        icon: CheckCircle2,
+        color: 'text-green-500',
+        label: 'High confidence',
+      },
+      medium: {
+        icon: HelpCircle,
+        color: 'text-yellow-500',
+        label: 'Medium confidence',
+      },
+      low: {
+        icon: AlertCircle,
+        color: 'text-orange-500',
+        label: 'Low confidence — choose manually',
+      },
+    };
+    
+    const config = confidenceConfig[detection.confidence];
+    const Icon = config.icon;
+    
+    return (
+      <div className={`flex items-center gap-2 text-xs mt-1.5 ${config.color}`}>
+        <Icon className="h-3 w-3" />
+        <span>
+          Detected: <span className="font-medium">{typeLabels[detection.detectedType]}</span>
+          {' '}({config.label})
+        </span>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card border-border sm:max-w-md">
@@ -175,26 +336,43 @@ export function AddTickerModal({
               id="symbol"
               placeholder="e.g., AAPL, BTC, SPY"
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              onChange={(e) => handleSymbolChange(e.target.value)}
               className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono"
               maxLength={10}
               required
             />
+            {renderDetectionStatus()}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="assetType" className="text-foreground">Asset Type</Label>
-            <Select value={assetType} onValueChange={(v) => setAssetType(v as 'stock' | 'crypto' | 'etf')}>
-              <SelectTrigger className="bg-input border-border text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="stock">Stock</SelectItem>
-                <SelectItem value="crypto">Crypto</SelectItem>
-                <SelectItem value="etf">ETF</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Collapsible 
+            open={showTypeOverride || isEditing} 
+            onOpenChange={setShowTypeOverride}
+          >
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-0 h-auto py-1"
+              >
+                <ChevronDown className={`h-3 w-3 transition-transform ${showTypeOverride || isEditing ? 'rotate-180' : ''}`} />
+                {showTypeOverride || isEditing ? 'Hide asset type' : 'Override asset type'}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2 pt-2">
+              <Label htmlFor="assetType" className="text-foreground">Asset Type</Label>
+              <Select value={assetType} onValueChange={handleAssetTypeChange}>
+                <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  <SelectItem value="stock">Stock</SelectItem>
+                  <SelectItem value="crypto">Crypto</SelectItem>
+                  <SelectItem value="etf">ETF</SelectItem>
+                </SelectContent>
+              </Select>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="space-y-2">
             <Label htmlFor="displayName" className="text-foreground">
