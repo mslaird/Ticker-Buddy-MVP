@@ -1,10 +1,12 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Minus, Lock, Crown, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Lock, Crown, Sparkles, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Quote } from '@/hooks/useMarketData';
 import { useNavigate } from 'react-router-dom';
+import { useAdvancedMetrics } from '@/hooks/useAdvancedMetrics';
 
 interface Ticker {
   id: string;
@@ -79,12 +81,34 @@ function MiniChart({ data, isPositive }: { data: number[]; isPositive: boolean }
   );
 }
 
-function BlurredMetric({ label, value, isPro }: { label: string; value: string; isPro: boolean }) {
+function BlurredMetric({ 
+  label, 
+  value, 
+  isPro, 
+  isUnavailable = false 
+}: { 
+  label: string; 
+  value: string; 
+  isPro: boolean; 
+  isUnavailable?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between py-2">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         {!isPro && <Lock className="h-3 w-3 text-muted-foreground" />}
+        {isUnavailable && isPro && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Advanced metric unavailable from data source</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         <span className={`text-sm font-mono ${!isPro ? 'blur-sm select-none' : ''}`}>
           {value}
         </span>
@@ -96,10 +120,18 @@ function BlurredMetric({ label, value, isPro }: { label: string; value: string; 
 export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: AssetDetailDrawerProps) {
   const navigate = useNavigate();
   
-  // Safe values when ticker is null - hooks must always be called unconditionally
-  const safeTicker = ticker ?? { id: '', symbol: '', asset_type: 'stock', display_name: null };
+  // Safe values for hooks - MUST be called unconditionally before any early return
+  const safeSymbol = (ticker?.symbol ?? '').trim().toUpperCase();
+  const safeAssetType = ticker?.asset_type ?? 'stock';
+  
+  // Hook for advanced metrics - called unconditionally with enabled flag
+  const advancedMetrics = useAdvancedMetrics({
+    symbol: safeSymbol,
+    assetType: safeAssetType,
+    enabled: !!ticker && isOpen,
+  });
 
-  // Don't render anything if ticker is null
+  // Don't render anything if ticker is null - AFTER all hooks
   if (!ticker) {
     return null;
   }
@@ -125,7 +157,8 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
     return `${sign}${change.toFixed(2)}`;
   };
 
-  const formatLargeNumber = (num: number): string => {
+  const formatLargeNumber = (num: number | null | undefined): string => {
+    if (num === null || num === undefined) return '—';
     if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
     if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
     if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
@@ -159,14 +192,13 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
   const chartData = generateMockChartData(currentPrice, ticker.symbol);
   const isPositive = (quote?.changePct ?? 0) >= 0;
 
-  // Generate mock pro metrics based on price/symbol
-  const seed = ticker.symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const high52w = (currentPrice * (1.2 + (seed % 30) / 100)).toFixed(2);
-  const low52w = (currentPrice * (0.6 + (seed % 20) / 100)).toFixed(2);
-  const volume = ((seed * 12345) % 50000000 + 1000000).toLocaleString();
-  const marketCap = ticker.asset_type === 'crypto' 
-    ? `${((seed * 987) % 500 + 10).toFixed(1)}B` 
-    : `$${((seed * 654) % 2000 + 50).toFixed(1)}B`;
+  // Use real data from advancedMetrics hook (52-week high/low from provider)
+  // For crypto: highRange/lowRange are ATH/ATL from CoinGecko
+  // For stocks/ETFs: highRange/lowRange are fiftyTwoWeekHigh/fiftyTwoWeekLow from Yahoo
+  const yearHigh = advancedMetrics.yearHigh;
+  const yearLow = advancedMetrics.yearLow;
+  const volume = advancedMetrics.volume;
+  const marketCap = advancedMetrics.marketCap;
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -257,30 +289,37 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
               <p className="text-xs text-muted-foreground uppercase tracking-wide">
                 Advanced Metrics (Pro)
               </p>
+              {advancedMetrics.isLoading && (
+                <span className="text-xs text-muted-foreground">(loading...)</span>
+              )}
             </div>
             <div className="p-4 rounded-xl bg-background/40 border border-border/30 space-y-1">
               <BlurredMetric 
                 label={ticker.asset_type === 'crypto' ? 'High (Range)' : '52-Week High'} 
-                value={`$${ticker.asset_type === 'crypto' && quote?.highRange ? formatLargeNumber(quote.highRange) : high52w}`} 
-                isPro={isPro} 
+                value={yearHigh !== null ? `$${formatPrice(yearHigh)}` : '—'} 
+                isPro={isPro}
+                isUnavailable={yearHigh === null && !advancedMetrics.isLoading}
               />
               <div className="border-t border-border/30" />
               <BlurredMetric 
                 label={ticker.asset_type === 'crypto' ? 'Low (Range)' : '52-Week Low'} 
-                value={`$${ticker.asset_type === 'crypto' && quote?.lowRange ? formatLargeNumber(quote.lowRange) : low52w}`} 
-                isPro={isPro} 
+                value={yearLow !== null ? `$${formatPrice(yearLow)}` : '—'} 
+                isPro={isPro}
+                isUnavailable={yearLow === null && !advancedMetrics.isLoading}
               />
               <div className="border-t border-border/30" />
               <BlurredMetric 
                 label={ticker.asset_type === 'crypto' ? '24h Volume' : 'Volume'} 
-                value={ticker.asset_type === 'crypto' && quote?.volume24h ? `$${formatLargeNumber(quote.volume24h)}` : volume} 
-                isPro={isPro} 
+                value={volume !== null ? formatLargeNumber(volume) : '—'} 
+                isPro={isPro}
+                isUnavailable={volume === null && !advancedMetrics.isLoading}
               />
               <div className="border-t border-border/30" />
               <BlurredMetric 
                 label="Market Cap" 
-                value={ticker.asset_type === 'crypto' && quote?.marketCap ? `$${formatLargeNumber(quote.marketCap)}` : marketCap} 
-                isPro={isPro} 
+                value={marketCap !== null ? `$${formatLargeNumber(marketCap)}` : '—'} 
+                isPro={isPro}
+                isUnavailable={marketCap === null && !advancedMetrics.isLoading}
               />
             </div>
           </div>
