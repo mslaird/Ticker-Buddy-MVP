@@ -110,7 +110,10 @@ const sizeClasses: Record<OverlaySettings['size'], {
 export function OverlayWidget({ tickers, quotes, isLoading, settings, isPro = false }: OverlayWidgetProps) {
   const [selectedTicker, setSelectedTicker] = useState<Ticker | null>(null);
   
-  if (!settings.pinned) return null;
+  // Early return AFTER all hooks to comply with Rules of Hooks
+  if (!settings.pinned) {
+    return null;
+  }
 
   const sizeConfig = sizeClasses[settings.size];
   const isCompact = settings.compactMode;

@@ -96,7 +96,13 @@ function BlurredMetric({ label, value, isPro }: { label: string; value: string; 
 export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: AssetDetailDrawerProps) {
   const navigate = useNavigate();
   
-  if (!ticker) return null;
+  // Safe values when ticker is null - hooks must always be called unconditionally
+  const safeTicker = ticker ?? { id: '', symbol: '', asset_type: 'stock', display_name: null };
+
+  // Don't render anything if ticker is null
+  if (!ticker) {
+    return null;
+  }
 
   const isUnavailable = quote?.quoteStatus === 'unavailable' || quote?.quoteStatus === 'source_unavailable' || quote?.price === null;
   const isSourceUnavailable = quote?.quoteStatus === 'source_unavailable';
