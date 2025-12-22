@@ -37,3 +37,20 @@ This file tracks stable points in the codebase that should not regress.
 | Compact OFF | Large | $88,328.00 | Full display (no ellipsis) |
 
 - ✅ Branch check: advanced-metrics verified on 2025-12-22 (no functional changes)
+---
+
+## Checkpoint: Advanced Metrics stable (Market Cap server-side, CORS-safe)
+
+**Date:** 2025-12-22  
+**What was fixed:**  
+- Market Cap now fetched **server-side** via Supabase edge function (no client-side Yahoo calls)
+- Market Cap now returns in `/market-data` response and renders in Advanced Metrics UI
+
+**Must NOT regress:**  
+- No client-side requests to `query2.finance.yahoo.com` (CORS risk)
+- `/market-data` returns `marketCap` for stocks/ETFs when available
+- UI shows Market Cap for AAPL/BMNR correctly
+
+**Relevant files:**  
+- `supabase/functions/market-data/*`  
+- `src/components/.../AssetDetailDrawer.tsx`
