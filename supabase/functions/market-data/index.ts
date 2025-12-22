@@ -251,7 +251,7 @@ function sleep(ms: number): Promise<void> {
 const marketCapCache: Map<string, { data: number | null; timestamp: number }> = new Map();
 const MARKET_CAP_CACHE_TTL_MS = 60000; // 1 minute for market cap
 
-// Fetch market cap from Yahoo v10 quoteSummary API (server-side only)
+// Fetch market cap from Yahoo v7 quote API (server-side only, more reliable)
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const upperSymbol = symbol.toUpperCase().trim();
   
@@ -261,10 +261,10 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
     return cached.data;
   }
   
-  // Try multiple endpoints in order of reliability
+  // Use v7 quote API - returns marketCap directly
   const endpoints = [
-    `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`,
-    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`,
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
   ];
   
   for (const url of endpoints) {
@@ -273,16 +273,15 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9',
         },
       });
       
       if (response.ok) {
         const data = await response.json();
-        const priceData = data?.quoteSummary?.result?.[0]?.price;
+        const result = data?.quoteResponse?.result?.[0];
         
-        if (priceData) {
-          const marketCap = priceData.marketCap?.raw;
+        if (result) {
+          const marketCap = result.marketCap;
           if (typeof marketCap === 'number' && marketCap > 0) {
             marketCapCache.set(upperSymbol, { data: marketCap, timestamp: Date.now() });
             return marketCap;
