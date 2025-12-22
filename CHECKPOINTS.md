@@ -46,5 +46,7 @@ This file tracks stable points in the codebase that should not regress.
 - The edge function already returns `highRange`/`lowRange` which map to Yahoo's `fiftyTwoWeekHigh`/`fiftyTwoWeekLow`
 - For crypto: these fields are ATH/ATL from CoinGecko
 - For stocks/ETFs: these are true 52-week high/low from Yahoo Finance
+- **Market Cap**: Added supplementary fetch using Yahoo quoteSummary API (summaryDetail/price modules) since chart API doesn't return marketCap
+- Market cap is cached separately (1 minute TTL) to avoid repeated requests
 - Core quote/price/% fetching remains UNTOUCHED (useMarketData.ts and market-data edge function logic preserved)
 - Hook is called unconditionally with `enabled` flag to respect Rules of Hooks

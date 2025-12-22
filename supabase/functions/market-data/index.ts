@@ -247,6 +247,77 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Cache for market cap data (separate from quote cache)
+const marketCapCache: Map<string, { data: number | null; timestamp: number }> = new Map();
+const MARKET_CAP_CACHE_TTL_MS = 60000; // 1 minute for market cap
+
+// Fetch market cap from Yahoo quoteSummary API
+async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
+  const upperSymbol = symbol.toUpperCase().trim();
+  
+  // Check cache first
+  const cached = marketCapCache.get(upperSymbol);
+  if (cached && Date.now() - cached.timestamp < MARKET_CAP_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  
+  try {
+    // Use quoteSummary endpoint with summaryDetail module which includes marketCap
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=summaryDetail`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const summaryDetail = data?.quoteSummary?.result?.[0]?.summaryDetail;
+      
+      if (summaryDetail) {
+        // Market cap can be in 'marketCap' field with 'raw' value
+        const marketCapRaw = summaryDetail.marketCap?.raw;
+        if (typeof marketCapRaw === 'number' && marketCapRaw > 0) {
+          console.log(`Yahoo marketCap for ${upperSymbol}: ${marketCapRaw}`);
+          marketCapCache.set(upperSymbol, { data: marketCapRaw, timestamp: Date.now() });
+          return marketCapRaw;
+        }
+      }
+    }
+    
+    // Try fallback to price endpoint which also has marketCap
+    const priceUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(upperSymbol)}?modules=price`;
+    const priceResponse = await fetch(priceUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (priceResponse.ok) {
+      const priceData = await priceResponse.json();
+      const price = priceData?.quoteSummary?.result?.[0]?.price;
+      
+      if (price) {
+        const marketCapRaw = price.marketCap?.raw;
+        if (typeof marketCapRaw === 'number' && marketCapRaw > 0) {
+          console.log(`Yahoo marketCap (price module) for ${upperSymbol}: ${marketCapRaw}`);
+          marketCapCache.set(upperSymbol, { data: marketCapRaw, timestamp: Date.now() });
+          return marketCapRaw;
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Yahoo marketCap fetch error for ${upperSymbol}:`, error);
+  }
+  
+  // Cache null result to avoid repeated failed requests
+  marketCapCache.set(upperSymbol, { data: null, timestamp: Date.now() });
+  return null;
+}
+
 // Fetch using Yahoo chart API (more reliable from server environments)
 async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; networkError: boolean }> {
   const upperSymbol = symbol.toUpperCase().trim();
@@ -648,6 +719,13 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
     if (assetType === 'stock' || assetType === 'etf') {
       const { quote: yahooQuote, networkError } = await fetchYahooPrice(symbol);
       if (yahooQuote) {
+        // Fetch market cap separately if not available from chart API
+        let marketCap: number | undefined = yahooQuote.marketCap;
+        if (typeof marketCap !== 'number' || marketCap <= 0) {
+          const fetchedMarketCap = await fetchYahooMarketCap(symbol);
+          marketCap = fetchedMarketCap ?? undefined;
+        }
+        
         return {
           symbol: upperSymbol,
           price: yahooQuote.price,
@@ -655,7 +733,7 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
           changePct: yahooQuote.changePct,
           isDelayed: true,
           quoteStatus: 'available',
-          marketCap: yahooQuote.marketCap,
+          marketCap: marketCap,
           volume24h: yahooQuote.volume24h,
           highRange: yahooQuote.highRange,
           lowRange: yahooQuote.lowRange,
