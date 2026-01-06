@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { setUserContext, clearUserContext } from '@/lib/sentry';
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Update Sentry user context
+        if (session?.user) {
+          setUserContext({
+            id: session.user.id,
+            email: session.user.email,
+          });
+        } else {
+          clearUserContext();
+        }
       }
     );
 
@@ -33,6 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Update Sentry user context
+      if (session?.user) {
+        setUserContext({
+          id: session.user.id,
+          email: session.user.email,
+        });
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -40,15 +59,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl
       }
     });
-    return { error };
+
+    if (error) {
+      return { error };
+    }
+
+    // Wait for profile creation with retry logic (protects against race conditions)
+    // The handle_new_user() trigger should create the profile, but we verify it exists
+    if (data?.user?.id) {
+      const userId = data.user.id;
+      const maxRetries = 5;
+      const retryDelay = 500; // ms
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (profile) {
+          // Profile created successfully
+          return { error: null };
+        }
+
+        // If last attempt and still no profile, return error
+        if (attempt === maxRetries - 1) {
+          console.error('Profile creation failed after retries:', profileError);
+          return {
+            error: new Error('Account created but profile setup failed. Please contact support.')
+          };
+        }
+
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+      }
+    }
+
+    return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {

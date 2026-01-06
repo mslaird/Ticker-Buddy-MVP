@@ -54,14 +54,17 @@ function MiniChart({ data, isPositive }: { data: number[]; isPositive: boolean }
     return `${x},${y}`;
   }).join(' ');
   
-  const strokeColor = isPositive ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
+  // Use brighter, more visible colors while maintaining aesthetic
+  const strokeColor = isPositive 
+    ? 'hsl(142, 71%, 55%)' // Brighter green (ticker-positive color)
+    : 'hsl(0, 72%, 58%)';  // Brighter red (ticker-negative color)
   const gradientId = isPositive ? 'chartGradientGreen' : 'chartGradientRed';
   
   return (
     <svg width={width} height={height} className="w-full">
       <defs>
         <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
+          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.5" />
           <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
         </linearGradient>
       </defs>
@@ -73,9 +76,10 @@ function MiniChart({ data, isPositive }: { data: number[]; isPositive: boolean }
         points={points}
         fill="none"
         stroke={strokeColor}
-        strokeWidth="2"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        opacity="0.9"
       />
     </svg>
   );
@@ -255,7 +259,7 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
           {/* Mini Chart */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Intraday (Preview)</p>
-            <div className="p-4 rounded-xl bg-background/40 border border-border/30">
+            <div className="p-4 rounded-xl bg-background/50 border border-border/40">
               {quote?.price ? (
                 <MiniChart data={chartData} isPositive={isPositive} />
               ) : (

@@ -4,6 +4,7 @@ import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { TickerCard } from '@/components/dashboard/TickerCard';
 import { AddTickerModal } from '@/components/dashboard/AddTickerModal';
 import { OverlayPreview } from '@/components/dashboard/OverlayPreview';
+import { RateLimitIndicator } from '@/components/RateLimitIndicator';
 import { useTickers, Ticker } from '@/hooks/useTickers';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useProfile } from '@/hooks/useProfile';
@@ -15,7 +16,7 @@ export default function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTicker, setEditingTicker] = useState<Ticker | null>(null);
   const { tickers, loading, addTicker, updateTicker, deleteTicker } = useTickers();
-  const { quotes, loading: quotesLoading, lastUpdated } = useMarketData(tickers, true);
+  const { quotes, loading: quotesLoading, lastUpdated, rateLimit } = useMarketData(tickers, true);
   const { profile, getTickerLimit } = useProfile();
   const navigate = useNavigate();
 
@@ -185,6 +186,9 @@ export default function Dashboard() {
           editingTicker={editingTicker}
           onUpdate={updateTicker}
         />
+
+        {/* Dev mode rate limit indicator */}
+        <RateLimitIndicator rateLimit={rateLimit} />
       </div>
     </SidebarProvider>
   );

@@ -1,9 +1,110 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Rate limiting configuration
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitStore: Map<string, RateLimitEntry> = new Map();
+
+// Rate limit configuration (configurable via environment variables)
+const RATE_LIMIT_REQUESTS = parseInt(Deno.env.get('RATE_LIMIT_REQUESTS') || '100', 10); // requests per window
+const RATE_LIMIT_WINDOW_MS = parseInt(Deno.env.get('RATE_LIMIT_WINDOW_MS') || '60000', 10); // 1 minute default
+const RATE_LIMIT_ENABLED = Deno.env.get('RATE_LIMIT_ENABLED') !== 'false'; // enabled by default
+
+// Clean up old rate limit entries periodically (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (entry.resetAt < now) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 300000); // 5 minutes
+
+function checkRateLimit(identifier: string): { allowed: boolean; remaining: number; resetAt: number } {
+  if (!RATE_LIMIT_ENABLED) {
+    return { allowed: true, remaining: RATE_LIMIT_REQUESTS, resetAt: Date.now() + RATE_LIMIT_WINDOW_MS };
+  }
+
+  const now = Date.now();
+  const entry = rateLimitStore.get(identifier);
+
+  if (!entry || entry.resetAt < now) {
+    // New window or expired entry
+    const newEntry: RateLimitEntry = {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    };
+    rateLimitStore.set(identifier, newEntry);
+    return { allowed: true, remaining: RATE_LIMIT_REQUESTS - 1, resetAt: newEntry.resetAt };
+  }
+
+  // Existing window
+  entry.count += 1;
+  const allowed = entry.count <= RATE_LIMIT_REQUESTS;
+  
+  return {
+    allowed,
+    remaining: Math.max(0, RATE_LIMIT_REQUESTS - entry.count),
+    resetAt: entry.resetAt,
+  };
+}
+
+function getClientIdentifier(req: Request): string {
+  // Try to get user ID from Supabase auth header first (more accurate)
+  const authHeader = req.headers.get('authorization');
+  if (authHeader) {
+    // Extract user ID from JWT if possible, otherwise use IP
+    // For now, we'll use IP + auth header hash for better accuracy
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+               req.headers.get('x-real-ip') || 
+               'unknown';
+    return `auth:${ip}:${authHeader.substring(0, 20)}`;
+  }
+  
+  // Fallback to IP address
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+             req.headers.get('x-real-ip') || 
+             'unknown';
+  return `ip:${ip}`;
+}
+
+// CORS configuration - restrict origins for security
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  // Get allowed origins from environment variable (comma-separated)
+  const allowedOriginsEnv = Deno.env.get('ALLOWED_ORIGINS') || '';
+  const allowedOrigins = allowedOriginsEnv
+    .split(',')
+    .map(o => o.trim())
+    .filter(o => o.length > 0);
+
+  // Default allowed origins for development
+  const defaultOrigins = [
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:5173',
+  ];
+
+  // Combine environment origins with defaults
+  const allAllowedOrigins = allowedOrigins.length > 0 
+    ? [...allowedOrigins, ...defaultOrigins]
+    : defaultOrigins;
+
+  // Check if origin is allowed
+  const allowedOrigin = origin && allAllowedOrigins.includes(origin)
+    ? origin
+    : (allAllowedOrigins.length > 0 ? allAllowedOrigins[0] : '*');
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Max-Age': '86400', // 24 hours
+  };
+}
 
 // Simple in-memory cache (15 second TTL)
 const cryptoCache: Map<string, { data: QuoteData; timestamp: number }> = new Map();
@@ -425,15 +526,19 @@ async function fetchYahooWithRetry(symbol: string): Promise<{ data: any; network
 
 async function fetchYahooPrice(symbol: string): Promise<{ quote: QuoteData | null; networkError: boolean }> {
   const upperSymbol = symbol.toUpperCase().trim();
-  
+
   const cached = yahooCache.get(upperSymbol);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return { quote: cached.data, networkError: false };
   }
 
   const { data: result, networkError } = await fetchYahooWithRetry(upperSymbol);
-  
+
   if (!result) {
+    // Log Yahoo fetch failures for monitoring
+    if (networkError) {
+      console.warn(`[market-data] Yahoo API network error for ${upperSymbol}`);
+    }
     yahooCache.set(upperSymbol, { data: null, timestamp: Date.now() });
     return { quote: null, networkError };
   }
@@ -774,24 +879,164 @@ async function getQuote(symbol: string, assetType: string, useProduction: boolea
   return getMockQuote(symbol, assetType);
 }
 
+// Input validation and sanitization helpers
+function sanitizeSymbol(symbol: string): string | null {
+  if (!symbol || typeof symbol !== 'string') return null;
+  // Remove whitespace and convert to uppercase
+  const cleaned = symbol.trim().toUpperCase();
+  // Validate: 1-10 alphanumeric characters (allowing longer crypto symbols)
+  if (!/^[A-Z0-9]{1,10}$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+function sanitizeAssetType(assetType: string): 'stock' | 'crypto' | 'etf' | null {
+  if (!assetType || typeof assetType !== 'string') return null;
+  const normalized = assetType.toLowerCase().trim();
+  if (normalized === 'stock' || normalized === 'crypto' || normalized === 'etf') {
+    return normalized as 'stock' | 'crypto' | 'etf';
+  }
+  return null;
+}
+
+function validateRequestBody(body: any): { valid: boolean; error?: string } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Request body must be an object' };
+  }
+
+  // Validate action-based requests
+  if (body.action === 'resolve') {
+    if (!body.symbol || typeof body.symbol !== 'string') {
+      return { valid: false, error: 'symbol is required and must be a string' };
+    }
+    const sanitized = sanitizeSymbol(body.symbol);
+    if (!sanitized) {
+      return { valid: false, error: 'Invalid symbol format' };
+    }
+    return { valid: true };
+  }
+
+  if (body.action === 'validate') {
+    if (!body.symbol || typeof body.symbol !== 'string') {
+      return { valid: false, error: 'symbol is required and must be a string' };
+    }
+    if (!body.assetType || typeof body.assetType !== 'string') {
+      return { valid: false, error: 'assetType is required and must be a string' };
+    }
+    const sanitizedSymbol = sanitizeSymbol(body.symbol);
+    const sanitizedAssetType = sanitizeAssetType(body.assetType);
+    if (!sanitizedSymbol || !sanitizedAssetType) {
+      return { valid: false, error: 'Invalid symbol or assetType format' };
+    }
+    return { valid: true };
+  }
+
+  // Validate quotes request
+  if (body.symbols) {
+    if (!Array.isArray(body.symbols)) {
+      return { valid: false, error: 'symbols must be an array' };
+    }
+    if (body.symbols.length === 0) {
+      return { valid: false, error: 'symbols array cannot be empty' };
+    }
+    if (body.symbols.length > 50) {
+      return { valid: false, error: 'Maximum 50 symbols per request' };
+    }
+    for (const item of body.symbols) {
+      if (!item || typeof item !== 'object') {
+        return { valid: false, error: 'Each symbol item must be an object' };
+      }
+      if (!item.symbol || typeof item.symbol !== 'string') {
+        return { valid: false, error: 'Each symbol item must have a symbol string' };
+      }
+      const sanitizedSymbol = sanitizeSymbol(item.symbol);
+      if (!sanitizedSymbol) {
+        return { valid: false, error: `Invalid symbol format: ${item.symbol}` };
+      }
+      if (item.assetType) {
+        const sanitizedAssetType = sanitizeAssetType(item.assetType);
+        if (!sanitizedAssetType) {
+          return { valid: false, error: `Invalid assetType: ${item.assetType}` };
+        }
+      }
+    }
+    return { valid: true };
+  }
+
+  return { valid: false, error: 'Invalid request: must include action or symbols' };
+}
+
 serve(async (req) => {
+  // Get origin from request headers
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed. Use POST.' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Rate limiting check
+  const clientId = getClientIdentifier(req);
+  const rateLimit = checkRateLimit(clientId);
+  
+  if (!rateLimit.allowed) {
+    return new Response(
+      JSON.stringify({ 
+        error: 'Rate limit exceeded',
+        message: `Too many requests. Limit: ${RATE_LIMIT_REQUESTS} requests per ${RATE_LIMIT_WINDOW_MS / 1000} seconds.`,
+        retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
+      }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': RATE_LIMIT_REQUESTS.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+          'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString(),
+        },
+      }
+    );
+  }
+
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate and sanitize request body
+    const validation = validateRequestBody(body);
+    if (!validation.valid) {
+      return new Response(
+        JSON.stringify({ error: validation.error || 'Invalid request' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Handle symbol resolution request (auto-detect asset type)
     if (body.action === 'resolve') {
-      const { symbol } = body;
-      if (!symbol || typeof symbol !== 'string') {
+      const sanitizedSymbol = sanitizeSymbol(body.symbol);
+      if (!sanitizedSymbol) {
         return new Response(
-          JSON.stringify({ error: 'symbol is required' }),
+          JSON.stringify({ error: 'Invalid symbol format' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const result = await resolveSymbol(symbol);
+      const result = await resolveSymbol(sanitizedSymbol);
       return new Response(
         JSON.stringify(result),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -800,8 +1045,15 @@ serve(async (req) => {
     
     // Handle symbol validation request
     if (body.action === 'validate') {
-      const { symbol, assetType } = body;
-      const result = await validateSymbol(symbol, assetType);
+      const sanitizedSymbol = sanitizeSymbol(body.symbol);
+      const sanitizedAssetType = sanitizeAssetType(body.assetType);
+      if (!sanitizedSymbol || !sanitizedAssetType) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid symbol or assetType format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const result = await validateSymbol(sanitizedSymbol, sanitizedAssetType);
       return new Response(
         JSON.stringify(result),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -811,28 +1063,57 @@ serve(async (req) => {
     // Handle quotes request
     const { symbols } = body;
     
-    if (!symbols || !Array.isArray(symbols)) {
-      return new Response(
-        JSON.stringify({ error: 'symbols must be an array' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Sanitize all symbols before processing
+    const sanitizedSymbols = symbols.map((item: { symbol: string; assetType?: string }) => ({
+      symbol: sanitizeSymbol(item.symbol) || item.symbol.toUpperCase().trim(),
+      assetType: sanitizeAssetType(item.assetType || 'stock') || 'stock',
+    })).filter((item: { symbol: string; assetType: string }) => item.symbol);
 
     const providerMode = Deno.env.get('MARKET_DATA_PROVIDER') || 'production';
     const useProduction = providerMode === 'production';
 
     const quotes = await Promise.all(
-      symbols.map((item: { symbol: string; assetType: string }) => 
-        getQuote(item.symbol, item.assetType || 'stock', useProduction)
+      sanitizedSymbols.map((item: { symbol: string; assetType: string }) => 
+        getQuote(item.symbol, item.assetType, useProduction)
       )
     );
 
     return new Response(
-      JSON.stringify({ quotes }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        quotes,
+        rateLimit: {
+          limit: RATE_LIMIT_REQUESTS,
+          remaining: rateLimit.remaining,
+          reset: rateLimit.resetAt,
+        },
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': RATE_LIMIT_REQUESTS.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+          'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+        }
+      }
     );
   } catch (error) {
-    console.error('Error in market-data function:', error);
+    // Enhanced error logging for monitoring
+    const errorDetails = {
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      } : String(error),
+      requestInfo: {
+        origin: origin || 'unknown',
+        userAgent: req.headers.get('user-agent'),
+      },
+    };
+
+    console.error('[market-data] Unhandled error:', JSON.stringify(errorDetails, null, 2));
+
     return new Response(
       JSON.stringify({ error: 'Failed to fetch market data' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

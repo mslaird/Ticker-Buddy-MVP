@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/s
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { OverlayWidget } from '@/components/overlay/OverlayWidget';
 import { OverlayControls } from '@/components/overlay/OverlayControls';
+import { RateLimitIndicator } from '@/components/RateLimitIndicator';
 import { useTickers } from '@/hooks/useTickers';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useOverlaySettings } from '@/hooks/useOverlaySettings';
@@ -12,7 +13,7 @@ export default function Overlay() {
   const { tickers, loading } = useTickers();
   const { settings, updateSettings, loading: settingsLoading } = useOverlaySettings();
   const { profile } = useProfile();
-  const { quotes, loading: quotesLoading } = useMarketData(tickers, true, settings.refreshInterval);
+  const { quotes, loading: quotesLoading, rateLimit } = useMarketData(tickers, true, settings.refreshInterval);
 
   const isPro = profile?.plan === 'pro';
 
@@ -56,14 +57,17 @@ export default function Overlay() {
 
         {/* Floating Overlay Widget */}
         {!loading && !settingsLoading && (
-          <OverlayWidget 
-            tickers={tickers} 
-            quotes={quotes} 
+          <OverlayWidget
+            tickers={tickers}
+            quotes={quotes}
             isLoading={quotesLoading}
             settings={settings}
             isPro={isPro}
           />
         )}
+
+        {/* Dev mode rate limit indicator */}
+        <RateLimitIndicator rateLimit={rateLimit} />
       </div>
     </SidebarProvider>
   );

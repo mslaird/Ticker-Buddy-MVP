@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Ticker } from '@/hooks/useTickers';
 import { Button } from '@/components/ui/button';
 import { MoreVertical, Pencil, Trash2, Info } from 'lucide-react';
@@ -35,7 +35,7 @@ function getTimeAgo(date: Date | null | undefined): string {
   return `${minutes}m ago`;
 }
 
-export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDelete }: TickerCardProps) {
+function TickerCardComponent({ ticker, quote, isLoading, lastUpdated, onEdit, onDelete }: TickerCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   const assetTypeStyles = {
@@ -164,3 +164,19 @@ export function TickerCard({ ticker, quote, isLoading, lastUpdated, onEdit, onDe
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent re-renders but props haven't changed
+export const TickerCard = memo(TickerCardComponent, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if these props actually change
+  return (
+    prevProps.ticker.id === nextProps.ticker.id &&
+    prevProps.ticker.symbol === nextProps.ticker.symbol &&
+    prevProps.ticker.asset_type === nextProps.ticker.asset_type &&
+    prevProps.ticker.display_name === nextProps.ticker.display_name &&
+    prevProps.quote?.price === nextProps.quote?.price &&
+    prevProps.quote?.changePct === nextProps.quote?.changePct &&
+    prevProps.quote?.quoteStatus === nextProps.quote?.quoteStatus &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.lastUpdated?.getTime() === nextProps.lastUpdated?.getTime()
+  );
+});

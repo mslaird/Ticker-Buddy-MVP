@@ -5,6 +5,7 @@
 // See CHECKPOINTS.md and src/components/overlay/README.md for layout rules.
 // ============================================================================
 
+import { memo } from 'react';
 import { Ticker } from '@/hooks/useTickers';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +17,7 @@ interface OverlayPreviewProps {
   isLoading?: boolean;
 }
 
-export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewProps) {
+function OverlayPreviewComponent({ tickers, quotes, isLoading }: OverlayPreviewProps) {
   if (tickers.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -111,3 +112,29 @@ export function OverlayPreview({ tickers, quotes, isLoading }: OverlayPreviewPro
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent re-renders but data hasn't changed
+export const OverlayPreview = memo(OverlayPreviewComponent, (prevProps, nextProps) => {
+  // Only re-render if tickers or quotes actually change
+  if (prevProps.tickers.length !== nextProps.tickers.length) return false;
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
+  
+  // Check if ticker IDs changed
+  const prevIds = prevProps.tickers.map(t => t.id).sort().join(',');
+  const nextIds = nextProps.tickers.map(t => t.id).sort().join(',');
+  if (prevIds !== nextIds) return false;
+  
+  // Check if quote prices changed for visible tickers
+  const visibleTickers = nextProps.tickers.slice(0, 5);
+  for (const ticker of visibleTickers) {
+    const prevQuote = prevProps.quotes[ticker.symbol];
+    const nextQuote = nextProps.quotes[ticker.symbol];
+    if (prevQuote?.price !== nextQuote?.price || 
+        prevQuote?.changePct !== nextQuote?.changePct ||
+        prevQuote?.quoteStatus !== nextQuote?.quoteStatus) {
+      return false;
+    }
+  }
+  
+  return true; // Props are equal, skip re-render
+});
