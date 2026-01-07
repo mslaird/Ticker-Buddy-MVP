@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Ticker Buddy",
+  "version": "1.0.0",
+  "description": "Your always-on market overlay, now on every website",
+  "icons": {
+    "16": "public/icon-16.svg",
+    "48": "public/icon-48.svg",
+    "128": "public/icon-128.svg"
+  },
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "public/icon-16.svg",
+      "48": "public/icon-48.svg",
+      "128": "public/icon-128.svg"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["*.js", "*.css", "src/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
