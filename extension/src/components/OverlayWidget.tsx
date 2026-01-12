@@ -5,7 +5,8 @@
  * Displays ticker overlay without AssetDetailDrawer (opens web app for details).
  */
 
-import { TrendingUp, TrendingDown, Minus, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { TrendingUp, TrendingDown, Minus, ExternalLink, X, GripVertical } from 'lucide-react';
 
 interface Ticker {
   id: string;
@@ -24,12 +25,15 @@ interface Quote {
 }
 
 interface OverlaySettings {
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'custom';
   opacity: number;
   size: 'small' | 'medium' | 'large';
   compactMode: boolean;
   refreshInterval: number;
   pinned: boolean;
+  customPosition?: { x: number; y: number };
+  hidden?: boolean;
+  autoHideOnScroll?: boolean;
 }
 
 interface OverlayWidgetProps {
@@ -38,13 +42,14 @@ interface OverlayWidgetProps {
   isLoading: boolean;
   settings: OverlaySettings;
   isPro?: boolean;
+  onHide?: () => void;
 }
 
-const positionClasses: Record<OverlaySettings['position'], string> = {
-  'top-left': 'top-4 left-4',
-  'top-right': 'top-4 right-4',
-  'bottom-left': 'bottom-4 left-4',
-  'bottom-right': 'bottom-4 right-4',
+const positionClasses: Record<Exclude<OverlaySettings['position'], 'custom'>, string> = {
+  'top-left': 'top-6 left-6',
+  'top-right': 'top-6 right-6',
+  'bottom-left': 'bottom-6 left-6',
+  'bottom-right': 'bottom-6 right-6',
 };
 
 const GRID_COLS_COMPACT = '52px minmax(48px, 1fr) 80px';
@@ -104,8 +109,102 @@ const sizeClasses: Record<OverlaySettings['size'], {
   },
 };
 
-export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayWidgetProps) {
+export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: OverlayWidgetProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState(settings.customPosition || { x: 0, y: 0 });
+  const [isVisible, setIsVisible] = useState(true);
+  const dragRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0, elementX: 0, elementY: 0 });
+  const lastScrollY = useRef(0);
+  const hideTimeoutRef = useRef<number | null>(null);
+
+  // Auto-hide on scroll
+  useEffect(() => {
+    if (!settings.autoHideOnScroll) return;
+
+    const handleScroll = () => {
+      setIsVisible(false);
+
+      // Show again after scrolling stops
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = setTimeout(() => {
+        setIsVisible(true);
+      }, 1000);
+
+      lastScrollY.current = window.scrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, [settings.autoHideOnScroll]);
+
+  // Drag and drop handlers with optimized performance
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!dragRef.current) return;
+
+    setIsDragging(true);
+    const rect = dragRef.current.getBoundingClientRect();
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      elementX: rect.left,
+      elementY: rect.top,
+    };
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    let rafId: number;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (rafId) cancelAnimationFrame(rafId);
+
+      rafId = requestAnimationFrame(() => {
+        if (!dragRef.current) return;
+
+        const deltaX = e.clientX - dragStartRef.current.x;
+        const deltaY = e.clientY - dragStartRef.current.y;
+
+        const newX = dragStartRef.current.elementX + deltaX;
+        const newY = dragStartRef.current.elementY + deltaY;
+
+        setPosition({ x: newX, y: newY });
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      if (rafId) cancelAnimationFrame(rafId);
+
+      // Save custom position to settings
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_CUSTOM_POSITION',
+        position,
+      });
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isDragging, position]);
+
   if (!settings.pinned) {
+    return null;
+  }
+
+  // Auto-hide on scroll
+  if (settings.autoHideOnScroll && !isVisible) {
     return null;
   }
 
@@ -158,10 +257,23 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
     chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' });
   };
 
+  // Determine positioning
+  const isCustomPosition = settings.position === 'custom';
+  const positionStyle = isCustomPosition
+    ? { left: `${position.x}px`, top: `${position.y}px` }
+    : {};
+  const positionClass = isCustomPosition
+    ? ''
+    : positionClasses[settings.position as Exclude<typeof settings.position, 'custom'>];
+
   return (
     <div
-      className={`fixed ${positionClasses[settings.position]} ${sizeConfig.container} z-[999999] transition-all duration-300`}
+      ref={dragRef}
+      className={`fixed ${positionClass} ${sizeConfig.container} z-[999999] transition-all duration-300 ${
+        isDragging ? 'cursor-grabbing' : ''
+      }`}
       style={{
+        ...positionStyle,
         opacity: settings.opacity / 100,
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
@@ -169,9 +281,9 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
       <div
         className="rounded-xl shadow-2xl border overflow-hidden"
         style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.72)',
+          borderColor: 'rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(24px)',
         }}
       >
         <div className={containerPadding}>
@@ -180,7 +292,15 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
             className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1.5 pb-1.5' : 'mb-3 pb-2'}`}
             style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {/* Drag Handle */}
+              <button
+                onMouseDown={handleMouseDown}
+                className="opacity-30 hover:opacity-70 transition-opacity cursor-grab active:cursor-grabbing"
+                title="Drag to reposition"
+              >
+                <GripVertical className="h-3 w-3" style={{ color: 'rgba(255, 255, 255, 0.8)' }} />
+              </button>
               <div
                 className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-blue-500`}
                 style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
@@ -189,13 +309,24 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings }: OverlayW
                 TICKER BUDDY
               </span>
             </div>
-            <button
-              onClick={() => chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' })}
-              className="opacity-50 hover:opacity-100 transition-opacity"
-              title="Open settings"
-            >
-              <ExternalLink className="h-3 w-3" style={{ color: 'rgba(255, 255, 255, 0.6)' }} />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Settings Button */}
+              <button
+                onClick={() => chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' })}
+                className="opacity-50 hover:opacity-100 transition-opacity"
+                title="Open settings"
+              >
+                <ExternalLink className="h-3 w-3" style={{ color: 'rgba(255, 255, 255, 0.6)' }} />
+              </button>
+              {/* Hide Button */}
+              <button
+                onClick={onHide}
+                className="opacity-50 hover:opacity-100 transition-opacity"
+                title="Hide overlay (click extension icon to show)"
+              >
+                <X className="h-3 w-3" style={{ color: 'rgba(255, 255, 255, 0.6)' }} />
+              </button>
+            </div>
           </div>
 
           {/* Tickers */}

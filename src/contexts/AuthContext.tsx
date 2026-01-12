@@ -36,6 +36,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           clearUserContext();
         }
+
+        // Sync session with Chrome extension (if installed)
+        if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          console.log('[AuthContext] Syncing session with extension...');
+          window.postMessage({
+            type: 'TICKER_BUDDY_SESSION_SYNC',
+            session,
+          }, window.location.origin);
+        }
       }
     );
 
@@ -51,6 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: session.user.id,
           email: session.user.email,
         });
+      }
+
+      // Sync existing session with Chrome extension (if installed)
+      if (session) {
+        console.log('[AuthContext] Syncing existing session with extension...');
+        window.postMessage({
+          type: 'TICKER_BUDDY_SESSION_SYNC',
+          session,
+        }, window.location.origin);
       }
     });
 

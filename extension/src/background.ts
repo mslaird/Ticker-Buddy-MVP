@@ -9,13 +9,16 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { ChromeStorageAdapter } from './lib/chromeStorage';
 
 // Supabase configuration (will be injected during build)
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'your-publishable-key';
 
+// Use chrome.storage for session persistence so it can be shared with the web app
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
+    storage: new ChromeStorageAdapter(),
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
@@ -45,11 +48,167 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_SETTINGS') {
-    chrome.tabs.create({ url: 'https://ticker-buddy.com/overlay' }); // TODO: Update with actual domain
+    chrome.tabs.create({ url: 'http://localhost:8082/overlay' }); // Development URL - will update to TickerBuddy.app in production
     sendResponse({ success: true });
     return true;
   }
+
+  if (message.type === 'SYNC_SESSION') {
+    handleSyncSession(message.session).then(sendResponse);
+    return true;
+  }
+
+  if (message.type === 'BROADCAST_SETTINGS_CHANGED') {
+    handleBroadcastSettingsChanged().then(sendResponse);
+    return true;
+  }
+
+  if (message.type === 'UPDATE_CUSTOM_POSITION') {
+    handleUpdateCustomPosition(message.position).then(sendResponse);
+    return true;
+  }
+
+  if (message.type === 'TOGGLE_OVERLAY_VISIBILITY') {
+    handleToggleOverlayVisibility().then(sendResponse);
+    return true;
+  }
 });
+
+async function handleToggleOverlayVisibility() {
+  try {
+    console.log('[Background] Toggling overlay visibility in all tabs...');
+
+    // Broadcast toggle to all content scripts
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'TOGGLE_OVERLAY',
+          }).catch(() => {
+            // Tab might not have content script loaded
+          });
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Background] Error toggling overlay visibility:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+async function handleUpdateCustomPosition(position: { x: number; y: number }) {
+  try {
+    console.log('[Background] Updating custom position:', position);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Get current settings
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('overlay_settings')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    const currentSettings = profile?.overlay_settings || {};
+
+    // Update with custom position
+    const newSettings = {
+      ...currentSettings,
+      position: 'custom',
+      customPosition: position,
+    };
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ overlay_settings: newSettings })
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('[Background] Error updating custom position:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Broadcast change to all tabs
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'SETTINGS_CHANGED',
+          }).catch(() => {
+            // Tab might not have content script loaded
+          });
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Background] Error in handleUpdateCustomPosition:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+async function handleBroadcastSettingsChanged() {
+  try {
+    console.log('[Background] Broadcasting settings change to all tabs...');
+
+    // Notify all content scripts about settings change
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'SETTINGS_CHANGED',
+          }).catch(() => {
+            // Tab might not have content script loaded
+          });
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Background] Error broadcasting settings change:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+async function handleSyncSession(session: any) {
+  try {
+    console.log('[Background] Syncing session from web app...');
+
+    // Store the session in chrome.storage using Supabase's expected format
+    const storageKey = `sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`;
+    await chrome.storage.local.set({
+      [storageKey]: JSON.stringify(session)
+    });
+
+    console.log('[Background] Session synced successfully');
+
+    // Notify content scripts about auth change
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'AUTH_STATE_CHANGED',
+            authenticated: true,
+          }).catch(() => {
+            // Tab might not have content script loaded
+          });
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Background] Error syncing session:', error);
+    return { success: false, error: String(error) };
+  }
+}
 
 async function handleGetAuthStatus() {
   try {
@@ -112,7 +271,7 @@ async function handleGetOverlaySettings() {
         settings: {
           position: 'bottom-right',
           opacity: 100,
-          size: 'medium',
+          size: 'small',
           compactMode: true,
           refreshInterval: 15,
           pinned: true,
@@ -133,7 +292,7 @@ async function handleGetOverlaySettings() {
     const defaultSettings = {
       position: 'bottom-right' as const,
       opacity: 100,
-      size: 'medium' as const,
+      size: 'small' as const,
       compactMode: true,
       refreshInterval: 15,
       pinned: true,
@@ -149,7 +308,7 @@ async function handleGetOverlaySettings() {
       settings: {
         position: 'bottom-right',
         opacity: 100,
-        size: 'medium',
+        size: 'small',
         compactMode: true,
         refreshInterval: 15,
         pinned: true,

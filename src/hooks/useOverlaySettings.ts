@@ -15,7 +15,7 @@ export interface OverlaySettings {
 const DEFAULT_SETTINGS: OverlaySettings = {
   position: 'bottom-right',
   opacity: 100,
-  size: 'medium',
+  size: 'small',
   compactMode: true,
   refreshInterval: 15,
   pinned: true,
@@ -54,6 +54,12 @@ export function useOverlaySettings() {
 
   const updateSettings = useCallback(async (newSettings: OverlaySettings) => {
     setSettings(newSettings);
+
+    // Notify extension immediately (for real-time UI updates)
+    window.postMessage({
+      type: 'TICKER_BUDDY_SETTINGS_CHANGED',
+      settings: newSettings,
+    }, window.location.origin);
 
     if (!user) return;
 

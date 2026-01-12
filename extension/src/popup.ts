@@ -75,7 +75,7 @@ function renderUnauthenticated(app: HTMLElement) {
   `;
 
   document.getElementById('signInBtn')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://ticker-buddy.com/login' }); // TODO: Update with actual domain
+    chrome.tabs.create({ url: 'http://localhost:8082/auth' }); // Development URL - will update to TickerBuddy.app in production
   });
 }
 
@@ -108,11 +108,14 @@ function renderAuthenticated(
     </div>
 
     <div class="buttons">
-      <button class="btn-primary" id="openDashboardBtn">
-        🎯 Open Dashboard
+      <button class="btn-primary" id="toggleOverlayBtn">
+        👁️ Toggle Overlay
+      </button>
+      <button class="btn-secondary" id="openDashboardBtn">
+        🎯 Dashboard
       </button>
       <button class="btn-secondary" id="openSettingsBtn">
-        ⚙️ Overlay Settings
+        ⚙️ Settings
       </button>
     </div>
 
@@ -122,11 +125,16 @@ function renderAuthenticated(
   `;
 
   document.getElementById('openDashboardBtn')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://ticker-buddy.com/dashboard' }); // TODO: Update with actual domain
+    chrome.tabs.create({ url: 'http://localhost:8082/dashboard' }); // Development URL - will update to TickerBuddy.app in production
   });
 
   document.getElementById('openSettingsBtn')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://ticker-buddy.com/overlay' }); // TODO: Update with actual domain
+    chrome.tabs.create({ url: 'http://localhost:8082/overlay' }); // Development URL - will update to TickerBuddy.app in production
+  });
+
+  // Add toggle button
+  document.getElementById('toggleOverlayBtn')?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'TOGGLE_OVERLAY_VISIBILITY' });
   });
 }
 
