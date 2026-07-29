@@ -1,73 +1,22 @@
-# Welcome to your Lovable project
+# Ticker Buddy: All-in-One Trading Intelligence Platform
+*Founder, Product & Design · product strategy + Figma MVP + whitepaper · 2025*
 
-## Project info
+**One-liner:** An all-in-one market-intelligence platform for retail traders that unifies real-time data, news, and AI-driven sentiment across every asset class designed end to end (product, UX, pricing, competitive positioning) and taken from insight to a validated, trademarked MVP.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+---
 
-## How can I edit this code?
+## The problem
+Retail traders juggle a dozen tabs. No single tool aggregates real-time data + news + social sentiment across stocks, crypto, forex, options, futures, and macro signals, and the incumbents (Yahoo Finance, Bloomberg, TradingView, Quartr) are either fragmented, enterprise-priced, or missing AI-native features. High market-data API costs keep independents out.
 
-There are several ways of editing your application.
+## What I designed & defined (the PM work)
+- **Product vision & scope:** a unified dashboard with a signature **Ticker Overlay** (favorited assets always visible, unobtrusively, over any screen), **AI-driven alerts** (volatility + strategy signals off a user's watchlist), **real-time sentiment** (Reddit/X), and **political/insider-trade tracking**.
+- **UX & design:** led the full **Figma MVP** across multiple iterations (dashboard V3→V4.2, asset window, overlay versions), a complete, clickable product design, not a sketch.
+- **Positioning & competitive analysis:** mapped the product against Bloomberg, TradingView, Quartr, and Yahoo Finance to carve a differentiated "all-in-one + AI-native + retail-priced" wedge.
+- **Systems architecture:** specified a **5-layer platform architecture** (Data Sources → AI & Data Processing → Platform Services → Distribution → User Ecosystem), naming real data providers (Polygon.io, FMP, Trueflation, CME), infra (Redis/AWS/Vercel Edge), and an **"AIMI" AI intelligence layer** (NLP sentiment, predictive volatility signals, summarization). Product thinking that goes down to the data-flow, not just the UI.
+- **Business model:** freemium (free core, premium for AI alerts + overlay customization) with an API-cost-sharing partnership path; sized against a $40B+ market and 160M+ retail trading accounts.
+- **Artifacts produced:** a 13-section **product whitepaper** with polished mockups (full dashboard "command hub," competitor-comparison matrix, overlay variants, architecture diagram), a **pitch deck**, and a **secured trademark**.
 
-**Use Lovable**
+## Outcome & honest reflection
+Reached a validated, fully-designed, trademarked MVP over 3+ months of focused product work, then made the honest call that the unit economics didn't close at an indie scale (market-data API costs were the wall, the same barrier that paused its sibling build, OptionPulse). **What it demonstrates:** end-to-end product ownership, turning a real user pain into a scoped, designed, positioned, and priced product, and knowing when the economics say "not yet."
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+*Design files (Figma) + whitepaper available on request · [add 3–4 Figma screenshots here]*
