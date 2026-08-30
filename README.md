@@ -14,9 +14,9 @@ Retail traders juggle a dozen tabs. No single tool aggregates real-time data + n
 - **Positioning & competitive analysis:** mapped the product against Bloomberg, TradingView, Quartr, and Yahoo Finance to carve a differentiated "all-in-one + AI-native + retail-priced" wedge.
 - **Systems architecture:** specified a **5-layer platform architecture** (Data Sources → AI & Data Processing → Platform Services → Distribution → User Ecosystem), naming real data providers (Polygon.io, FMP, Trueflation, CME), infra (Redis/AWS/Vercel Edge), and an **"AIMI" AI intelligence layer** (NLP sentiment, predictive volatility signals, summarization). Product thinking that goes down to the data-flow, not just the UI.
 - **Business model:** freemium (free core, premium for AI alerts + overlay customization) with an API-cost-sharing partnership path; sized against a $40B+ market and 160M+ retail trading accounts.
-- **Artifacts produced:** a 13-section **product whitepaper** with polished mockups (full dashboard "command hub," competitor-comparison matrix, overlay variants, architecture diagram), a **pitch deck**, and a **secured trademark**.
+- **Artifacts produced:** a 13-section **product whitepaper** with polished mockups (full dashboard "command hub," competitor-comparison matrix, overlay variants, architecture diagram), a **pitch deck**, and a **trademark filed in three classes** (USPTO serial 99094976, later abandoned along with the build).
 
 ## Outcome & honest reflection
-Reached a validated, fully-designed, trademarked MVP over 3+ months of focused product work, then made the honest call that the unit economics didn't close at an indie scale (market-data API costs were the wall, the same barrier that paused its sibling build, OptionPulse). **What it demonstrates:** end-to-end product ownership, turning a real user pain into a scoped, designed, positioned, and priced product, and knowing when the economics say "not yet."
+Reached a validated, fully-designed MVP over 3+ months of focused product work, then made the honest call that the unit economics didn't close at an indie scale (market-data API costs were the wall, the same barrier that paused its sibling build, OptionPulse). **What it demonstrates:** end-to-end product ownership, turning a real user pain into a scoped, designed, positioned, and priced product, and knowing when the economics say "not yet."
 
-*Design files (Figma) + whitepaper available on request · [add 3–4 Figma screenshots here]*
+*Design files (Figma) + whitepaper available on request.*
