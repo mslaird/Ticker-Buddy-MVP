@@ -1,7 +1,7 @@
 # Ticker Buddy: All-in-One Trading Intelligence Platform
 *Founder, Product & Design · product strategy + Figma MVP + whitepaper · 2025*
 
-**One-liner:** An all-in-one market-intelligence platform for retail traders that unifies real-time data, news, and AI-driven sentiment across every asset class designed end to end (product, UX, pricing, competitive positioning) and taken from insight to a validated, trademarked MVP.
+**One-liner:** An all-in-one market-intelligence platform for retail traders that unifies real-time data, news, and AI-driven sentiment across every asset class designed end to end (product, UX, pricing, competitive positioning) and taken from insight to a validated, fully-designed MVP.
 
 ---
 
