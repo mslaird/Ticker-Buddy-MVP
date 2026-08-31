@@ -23,7 +23,20 @@
 -- Control 1: column-level privilege. Clients may never write `plan` at all.
 -- Plan changes belong to the service role (billing webhook / admin), which
 -- bypasses both RLS and column grants.
-REVOKE UPDATE (plan) ON public.profiles FROM authenticated, anon;
+--
+-- NOTE: `REVOKE UPDATE (plan)` alone is a no-op here. A column-level revoke only
+-- removes a column-level grant, and Supabase's defaults issue a TABLE-level
+-- `GRANT UPDATE ON public.profiles TO authenticated`, which implicitly covers
+-- every column. Verified against the live database: after a column-only revoke,
+-- has_column_privilege('authenticated','public.profiles','plan','UPDATE') still
+-- returned true. The table-level grant has to be dropped and the allowed columns
+-- re-granted explicitly.
+--
+-- `overlay_settings` is the only profiles column the client writes
+-- (src/hooks/useOverlaySettings.ts). `display_name` is granted for the settings
+-- UI. Everything else, `plan` above all, is service-role only.
+REVOKE UPDATE ON public.profiles FROM authenticated, anon;
+GRANT UPDATE (overlay_settings, display_name) ON public.profiles TO authenticated;
 
 -- Control 2: add the missing WITH CHECK, and pin plan to its existing value.
 -- Postgres defaults a missing WITH CHECK on UPDATE to the USING expression, so
