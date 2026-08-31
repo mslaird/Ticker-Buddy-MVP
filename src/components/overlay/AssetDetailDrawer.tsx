@@ -23,7 +23,11 @@ interface AssetDetailDrawerProps {
   isPro: boolean;
 }
 
-// Generate mock intraday chart data based on current price
+// Deterministic placeholder shape, NOT market data.
+// Historical intraday is not wired up: the quotes endpoint returns a single
+// current price, so there is no series to plot. This renders a stable shape
+// derived from the symbol so the panel has structure, and every caller MUST
+// label it as illustrative. Do not present this as price history.
 function generateMockChartData(basePrice: number, symbol: string): number[] {
   const points: number[] = [];
   const seed = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -258,10 +262,16 @@ export function AssetDetailDrawer({ ticker, quote, isOpen, onClose, isPro }: Ass
 
           {/* Mini Chart */}
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Intraday (Preview)</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Intraday</p>
             <div className="p-4 rounded-xl bg-background/50 border border-border/40">
               {quote?.price ? (
-                <MiniChart data={chartData} isPositive={isPositive} />
+                <>
+                  <MiniChart data={chartData} isPositive={isPositive} />
+                  <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
+                    Illustrative shape only. Historical intraday data is not yet
+                    connected; the quote above is live.
+                  </p>
+                </>
               ) : (
                 <Skeleton className="h-[60px] w-full" />
               )}

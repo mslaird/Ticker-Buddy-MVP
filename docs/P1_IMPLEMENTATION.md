@@ -2,9 +2,17 @@
 
 **Date:** 2026-01-05
 **Status:** ✅ Complete
-**Build Status:** ✅ Passing (TypeScript compilation successful)
+**Build Status:** `vite build` passes. Note that `npm run build` does not typecheck — it is bare `vite build`, which strips types via SWC. Run `npx tsc --noEmit -p tsconfig.app.json` separately.
 
 ---
+
+> **Correction (2026-08-31).** The claim that this limit "cannot be bypassed" was wrong as originally
+> shipped. `check_ticker_limit()` reads `plan` from `public.profiles`, and the RLS UPDATE policy on
+> that table constrained only which *row* a user could write, not which *columns* — so a client could
+> set its own `plan` to `'pro'` and raise its own limit. Fixed in migration
+> `20260831120000_fix_profiles_update_policy.sql`, which revokes column-level UPDATE on `plan` from
+> `authenticated`/`anon` and adds the missing `WITH CHECK`. The enforcement is genuinely
+> database-level now; it was not before.
 
 ## Overview
 
@@ -57,7 +65,7 @@ const canAddMore = tickers.length < tickerLimit;
 
 Now enforced at database level:
 ```sql
--- AFTER (database-level - cannot bypass)
+-- AFTER (database-level enforcement)
 CREATE TRIGGER enforce_ticker_limit_on_insert
   BEFORE INSERT ON public.tickers
   FOR EACH ROW EXECUTE FUNCTION check_ticker_limit();
@@ -294,7 +302,7 @@ npm run build
 ## Success Criteria
 
 ✅ **P1.1:** Indexes improve query performance (measure with EXPLAIN ANALYZE)
-✅ **P1.2:** Users cannot bypass ticker limits via API/direct DB access
+✅ **P1.2:** Users cannot bypass ticker limits via API/direct DB access (true only after `20260831120000_fix_profiles_update_policy.sql`; see the correction note at the top)
 ✅ **P1.3:** No "profile not found" errors after signup (monitor for 7 days)
 
 **All criteria met:** System is production-ready with hardened data integrity.

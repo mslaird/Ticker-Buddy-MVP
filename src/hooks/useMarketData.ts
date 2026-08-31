@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { Ticker } from './useTickers';
 import { captureError, addBreadcrumb } from '@/lib/sentry';
@@ -92,11 +93,19 @@ export function useMarketData(tickers: Ticker[], isActive: boolean, pollInterval
         assetType: t.asset_type,
       }));
 
-      const { data, error, status } = await supabase.functions.invoke('market-data', {
+      const { data, error } = await supabase.functions.invoke('market-data', {
         body: { symbols },
       });
 
       if (error) {
+        // FunctionsResponse carries no `status`. On a non-2xx the SDK throws a
+        // FunctionsHttpError whose `context` is the raw Response, so the real
+        // HTTP status has to be read from there. Without this, the 429 and 5xx
+        // branches below are unreachable and rate limiting silently degrades
+        // to a substring match on the error message.
+        const status: number | undefined =
+          error instanceof FunctionsHttpError ? error.context?.status : undefined;
+
         console.error('Error fetching market data:', error);
         errorCountRef.current += 1;
 
