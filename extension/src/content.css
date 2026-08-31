@@ -1,34 +1,77 @@
-/* Only import Tailwind utilities, NOT base styles that reset page CSS */
+/* Import Tailwind utilities */
 @tailwind utilities;
 
-/* Scope ALL styles to our overlay container only */
+/* Container isolation and positioning */
 #ticker-buddy-extension-root {
-  /* Reset only our container, not the entire page */
-  all: initial;
+  /* Positioning - fixed overlay */
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  pointer-events: none !important;
 
-  /* Animation keyframes */
+  /* Transparency */
+  background: transparent !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  /* Typography base */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  color: white !important;
+  font-weight: 400 !important;
+
+  /* Animations */
   @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
+}
 
-  /* Re-enable basic styles for our content only */
-  * {
-    box-sizing: border-box;
-  }
+/* Enable interactions on content */
+#ticker-buddy-extension-root > * {
+  pointer-events: auto !important;
+}
+
+/* Ensure all children inherit font */
+#ticker-buddy-extension-root *,
+#ticker-buddy-extension-root *::before,
+#ticker-buddy-extension-root *::after {
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure buttons display correctly */
+#ticker-buddy-extension-root button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Ensure SVG icons render properly */
+#ticker-buddy-extension-root svg {
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  overflow: visible !important;
+}
+
+/* Ensure icon containers don't collapse */
+#ticker-buddy-extension-root svg path {
+  fill: inherit !important;
+  stroke: inherit !important;
 }

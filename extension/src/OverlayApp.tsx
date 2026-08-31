@@ -50,9 +50,11 @@ export function OverlayApp() {
   const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [contextInvalidated, setContextInvalidated] = useState(false);
 
   // Check authentication status
   const checkAuth = useCallback(async () => {
+    if (contextInvalidated) return false;
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_AUTH_STATUS' });
       setAuthenticated(response.authenticated);
@@ -61,6 +63,7 @@ export function OverlayApp() {
       const errorMessage = String(error);
       if (errorMessage.includes('Extension context invalidated')) {
         console.warn('[OverlayApp] Extension was reloaded, cleaning up');
+        setContextInvalidated(true);
         const container = document.getElementById('ticker-buddy-extension-root');
         if (container) container.remove();
         return false;
@@ -68,10 +71,11 @@ export function OverlayApp() {
       console.error('[OverlayApp] Error checking auth:', error);
       return false;
     }
-  }, []);
+  }, [contextInvalidated]);
 
   // Fetch tickers from background
   const fetchTickers = useCallback(async () => {
+    if (contextInvalidated) return;
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_TICKERS' });
       if (response.tickers) {
@@ -81,16 +85,18 @@ export function OverlayApp() {
       const errorMessage = String(error);
       if (errorMessage.includes('Extension context invalidated')) {
         console.warn('[OverlayApp] Extension was reloaded, cleaning up');
+        setContextInvalidated(true);
         const container = document.getElementById('ticker-buddy-extension-root');
         if (container) container.remove();
         return;
       }
       console.error('[OverlayApp] Error fetching tickers:', error);
     }
-  }, []);
+  }, [contextInvalidated]);
 
   // Fetch overlay settings from background
   const fetchSettings = useCallback(async () => {
+    if (contextInvalidated) return;
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_OVERLAY_SETTINGS' });
       if (response.settings) {
@@ -103,16 +109,18 @@ export function OverlayApp() {
       const errorMessage = String(error);
       if (errorMessage.includes('Extension context invalidated')) {
         console.warn('[OverlayApp] Extension was reloaded, cleaning up');
+        setContextInvalidated(true);
         const container = document.getElementById('ticker-buddy-extension-root');
         if (container) container.remove();
         return;
       }
       console.error('[OverlayApp] Error fetching settings:', error);
     }
-  }, []);
+  }, [contextInvalidated]);
 
   // Fetch market data from background
   const fetchMarketData = useCallback(async () => {
+    if (contextInvalidated) return;
     if (tickers.length === 0) {
       setQuotes({});
       return;
@@ -133,6 +141,7 @@ export function OverlayApp() {
       // Handle extension context invalidation
       if (errorMessage.includes('Extension context invalidated')) {
         console.warn('[OverlayApp] Extension was reloaded, stopping updates');
+        setContextInvalidated(true);
         // Remove the overlay to avoid further errors
         const container = document.getElementById('ticker-buddy-extension-root');
         if (container) {
@@ -143,7 +152,7 @@ export function OverlayApp() {
 
       console.error('[OverlayApp] Error fetching market data:', error);
     }
-  }, [tickers]);
+  }, [contextInvalidated, tickers]);
 
   // Initial data load
   useEffect(() => {
@@ -175,7 +184,7 @@ export function OverlayApp() {
 
   // Poll for market data at refresh interval
   useEffect(() => {
-    if (!authenticated || tickers.length === 0) {
+    if (contextInvalidated || !authenticated || tickers.length === 0) {
       return;
     }
 
@@ -186,7 +195,7 @@ export function OverlayApp() {
     const interval = setInterval(fetchMarketData, settings.refreshInterval * 1000);
 
     return () => clearInterval(interval);
-  }, [authenticated, tickers, settings.refreshInterval, fetchMarketData]);
+  }, [contextInvalidated, authenticated, tickers, settings.refreshInterval, fetchMarketData]);
 
   // Listen for settings changes from background
   useEffect(() => {
@@ -208,6 +217,11 @@ export function OverlayApp() {
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, [fetchSettings, fetchTickers]);
+
+  // Don't render if context is invalidated
+  if (contextInvalidated) {
+    return null;
+  }
 
   // Don't render if not authenticated
   if (!authenticated) {

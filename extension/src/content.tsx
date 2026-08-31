@@ -16,7 +16,18 @@ console.log('[Ticker Buddy] Content script loaded');
 // Create container for the overlay
 const CONTAINER_ID = 'ticker-buddy-extension-root';
 
+// Don't inject on Ticker Buddy web app pages
+const isTickerBuddyApp = window.location.hostname === 'localhost' &&
+  (window.location.port === '8082' || window.location.port === '5173') ||
+  window.location.hostname.includes('tickerbuddy.app');
+
 function injectOverlay() {
+  // Skip injection on Ticker Buddy web app
+  if (isTickerBuddyApp) {
+    console.log('[Ticker Buddy] Skipping injection on Ticker Buddy web app');
+    return;
+  }
+
   try {
     // Check if already injected
     if (document.getElementById(CONTAINER_ID)) {
@@ -62,6 +73,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 // Listen for messages from the web app
 window.addEventListener('message', async (event) => {
+  // Guard: ensure chrome.runtime is available
+  if (!chrome?.runtime?.sendMessage) {
+    return;
+  }
+
   // Only accept messages from same origin (localhost:8082 or TickerBuddy.app)
   if (event.origin !== window.location.origin) {
     return;

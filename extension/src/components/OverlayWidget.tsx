@@ -115,8 +115,17 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
   const [isVisible, setIsVisible] = useState(true);
   const dragRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0, elementX: 0, elementY: 0 });
+  const currentPositionRef = useRef(settings.customPosition || { x: 0, y: 0 });
   const lastScrollY = useRef(0);
   const hideTimeoutRef = useRef<number | null>(null);
+
+  // Sync position when settings change
+  useEffect(() => {
+    if (settings.customPosition) {
+      currentPositionRef.current = settings.customPosition;
+      setPosition(settings.customPosition);
+    }
+  }, [settings.customPosition]);
 
   // Auto-hide on scroll
   useEffect(() => {
@@ -153,6 +162,15 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
       elementX: rect.left,
       elementY: rect.top,
     };
+
+    // Auto-switch to custom position mode on drag
+    if (settings.position !== 'custom') {
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_OVERLAY_SETTINGS',
+        settings: { position: 'custom' },
+      });
+    }
+
     e.preventDefault();
     e.stopPropagation();
   };
@@ -174,7 +192,10 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
         const newX = dragStartRef.current.elementX + deltaX;
         const newY = dragStartRef.current.elementY + deltaY;
 
-        setPosition({ x: newX, y: newY });
+        // Update position ref and DOM directly (no re-render)
+        currentPositionRef.current = { x: newX, y: newY };
+        dragRef.current.style.left = `${newX}px`;
+        dragRef.current.style.top = `${newY}px`;
       });
     };
 
@@ -182,10 +203,13 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
       setIsDragging(false);
       if (rafId) cancelAnimationFrame(rafId);
 
-      // Save custom position to settings
+      // Update state and save position
+      const finalPosition = currentPositionRef.current;
+      setPosition(finalPosition);
+
       chrome.runtime.sendMessage({
         type: 'UPDATE_CUSTOM_POSITION',
-        position,
+        position: finalPosition,
       });
     };
 
@@ -197,7 +221,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
       document.removeEventListener('mouseup', handleMouseUp);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [isDragging, position]);
+  }, [isDragging]);
 
   if (!settings.pinned) {
     return null;
@@ -252,9 +276,11 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
     return quote?.quoteStatus === 'source_unavailable';
   };
 
-  const handleTickerClick = () => {
-    // Open web app in new tab for details
-    chrome.runtime.sendMessage({ type: 'OPEN_SETTINGS' });
+  const handleTickerClick = (ticker: Ticker) => {
+    // TODO: For pro users, show detail drawer with advanced data
+    // For now, do nothing - only top-right icon should navigate
+    console.log('[OverlayWidget] Ticker clicked:', ticker.symbol);
+    // Future: Open drawer with live updates, news, charts, etc.
   };
 
   // Determine positioning
@@ -269,28 +295,31 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
   return (
     <div
       ref={dragRef}
-      className={`fixed ${positionClass} ${sizeConfig.container} z-[999999] transition-all duration-300 ${
+      className={`fixed ${positionClass} ${sizeConfig.container} transition-all duration-300 ${
         isDragging ? 'cursor-grabbing' : ''
       }`}
       style={{
         ...positionStyle,
         opacity: settings.opacity / 100,
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        zIndex: 2147483647,
+        pointerEvents: 'auto',
       }}
     >
       <div
-        className="rounded-xl shadow-2xl border overflow-hidden"
+        className="rounded-xl border overflow-hidden"
         style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.72)',
-          borderColor: 'rgba(255, 255, 255, 0.15)',
+          backgroundColor: 'rgba(17, 19, 24, 0.8)',
+          borderColor: 'rgba(61, 66, 79, 0.5)',
           backdropFilter: 'blur(24px)',
+          boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.4), 0 0 40px rgba(66, 153, 225, 0.2)',
         }}
       >
         <div className={containerPadding}>
           {/* Header */}
           <div
             className={`flex items-center justify-between gap-2 ${isCompact ? 'mb-1.5 pb-1.5' : 'mb-3 pb-2'}`}
-            style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}
+            style={{ borderBottom: '1px solid rgba(61, 66, 79, 0.5)' }}
           >
             <div className="flex items-center gap-1.5">
               {/* Drag Handle */}
@@ -305,7 +334,7 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
                 className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-blue-500`}
                 style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
               />
-              <span className={`${textSize} font-medium tracking-wide`} style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+              <span className={`${textSize} font-medium tracking-wide`} style={{ color: 'rgb(147, 156, 177)' }}>
                 TICKER BUDDY
               </span>
             </div>
@@ -346,16 +375,16 @@ export function OverlayWidget({ tickers, quotes, isLoading, settings, onHide }: 
                 return (
                   <button
                     key={ticker.id}
-                    onClick={handleTickerClick}
+                    onClick={() => handleTickerClick(ticker)}
                     className={`w-full flex flex-col px-2 ${rowPaddingY} rounded-lg transition-colors cursor-pointer`}
                     style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: 'rgba(17, 19, 24, 0.4)',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.backgroundColor = 'rgba(17, 19, 24, 0.6)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.backgroundColor = 'rgba(17, 19, 24, 0.4)';
                     }}
                   >
                     {/* 3-column grid */}
