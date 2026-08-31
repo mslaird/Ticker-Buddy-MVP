@@ -1,10 +1,10 @@
+import { useState } from 'react';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Check, Sparkles, Crown, Zap, Shield } from 'lucide-react';
 import { toast } from 'sonner';
-import { useState } from 'react';
 
 const freeFeatures = [
   'Track up to 3 tickers',
@@ -24,6 +24,7 @@ const proFeatures = [
 ];
 
 export default function Upgrade() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { profile } = useProfile();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const isPro = profile?.plan === 'pro';
@@ -33,7 +34,7 @@ export default function Upgrade() {
   };
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <div className="min-h-screen flex w-full bg-background">
         <DashboardSidebar />
         

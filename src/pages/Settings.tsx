@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,12 +8,13 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user } = useAuth();
   const { profile } = useProfile();
   const navigate = useNavigate();
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <div className="min-h-screen flex w-full bg-background">
         <DashboardSidebar />
         

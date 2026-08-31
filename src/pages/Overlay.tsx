@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { OverlayWidget } from '@/components/overlay/OverlayWidget';
@@ -10,6 +11,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { Layers, Loader2 } from 'lucide-react';
 
 export default function Overlay() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { tickers, loading } = useTickers();
   const { settings, updateSettings, loading: settingsLoading } = useOverlaySettings();
   const { profile } = useProfile();
@@ -18,7 +20,7 @@ export default function Overlay() {
   const isPro = profile?.plan === 'pro';
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <div className="min-h-screen flex w-full bg-background">
         <DashboardSidebar />
         

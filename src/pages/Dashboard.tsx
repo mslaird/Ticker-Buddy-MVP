@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 export default function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTicker, setEditingTicker] = useState<Ticker | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { tickers, loading, addTicker, updateTicker, deleteTicker } = useTickers();
   const { quotes, loading: quotesLoading, lastUpdated, rateLimit } = useMarketData(tickers, true);
   const { profile, getTickerLimit } = useProfile();
@@ -40,7 +41,7 @@ export default function Dashboard() {
   };
 
   return (
-    <SidebarProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <div className="min-h-screen flex w-full bg-background">
         <DashboardSidebar />
         
