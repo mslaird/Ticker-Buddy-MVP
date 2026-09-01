@@ -2,7 +2,8 @@
 
 A market-cap-weighted, sector-grouped treemap of US equity indices, built with D3 v7 and
 React 19. Part of the [Ticker Buddy](../README.md) platform: the whitepaper specced this as a
-dashboard feature, and it was built standalone as a working prototype before being wired in.
+dashboard feature. It was built standalone as a working prototype and is **not** wired into the
+web app — it runs on its own dev server. Integrating it was future work when the project paused.
 
 Five maps: **S&P 500**, **Dow 30**, **Nasdaq 100**, an **ETF map** grouped by
 class and strategy, and a **World map** grouped Region → Country → Ticker.
