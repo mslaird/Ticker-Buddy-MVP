@@ -1,0 +1,406 @@
+/* Add styles for tooltip percentage change */
+.tooltip-positive {
+  color: #17C653; /* Bright green */
+  font-weight: bold;
+  text-shadow: 0 0 4px #17C653, 0 0 7px rgba(23, 198, 83, 0.7); /* Green glow */
+}
+
+.tooltip-negative {
+  color: #ff4d4d; /* Brighter red for better visibility */
+  font-weight: bold;
+  text-shadow: 0 0 4px #ff4d4d, 0 0 7px rgba(255, 77, 77, 0.7); /* Red glow */
+}
+
+.tooltip-neutral {
+   color: #cccccc; /* Light grey */
+   font-weight: bold;
+   /* No glow for neutral */
+}
+
+/* Ensure tooltip content aligns items properly if needed */
+#tooltip-react {
+  line-height: 1.4; /* Adjust line spacing if needed */
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #121212; /* Dark background for the whole page */
+  color: #e0e0e0; /* Default light text color */
+}
+
+/* Heatmap Specific Styles */
+
+/* REMOVE Header border using pseudo-element */
+/* #heatmap-header::after { ... } */
+
+/* REMOVE Tab positioning */
+/* #index-tabs { ... } */
+
+/* REMOVE Base styles for ALL tabs */
+/* .index-tab { ... } */
+
+/* REMOVE Active tab background/padding */
+/* .index-tab.active { ... } */
+
+/* KEEP Disabled tab styling */
+.index-tab:disabled {
+  color: #666;
+  cursor: default;
+}
+
+/* Sector Popup Item Hover */
+.sector-popup-item:hover {
+  background-color: rgba(70, 70, 70, 0.95); /* Lighter grey on hover */
+  cursor: pointer; /* Indicate interactivity */
+}
+
+/* ... rest of existing styles ... */
+
+/* Responsive Header Adjustments */
+@media (max-width: 1200px) {
+  #heatmap-description p {
+    font-size: 9pt; /* Slightly smaller description */
+  }
+  .live-text {
+    font-size: 9pt; /* Slightly smaller live text */
+  }
+}
+
+@media (max-width: 992px) {
+  #heatmap-header {
+    /* REMOVE flex-wrap: wrap; to keep items on one line */
+     /* flex-wrap: wrap; */
+  }
+  #heatmap-description {
+     /* Remove order, flex-basis, and vertical margins */
+     /* order: 3; */
+     /* flex-basis: 100%; */
+     /* margin-top: 5px; */
+     /* margin-bottom: 5px; */
+     
+     /* Ensure it can shrink and text doesn't wrap */
+     flex-shrink: 1; /* Allow description to shrink */
+     min-width: 50px; /* Prevent shrinking too much (optional) */
+     overflow: hidden; /* Hide overflow for ellipsis */
+     white-space: nowrap; /* Keep text on one line */
+     text-align: center; /* Restore center alignment */
+     font-size: 8.5pt;
+  }
+   #heatmap-description p {
+     font-size: 8.5pt;
+     /* Apply single-line ellipsis */
+     overflow: hidden;
+     white-space: nowrap;
+     text-overflow: ellipsis;
+     /* Remove multi-line clamp styles */
+     /* display: -webkit-box; */
+     /* -webkit-line-clamp: 2; */
+     /* -webkit-box-orient: vertical; */
+   }
+  
+  #index-tabs {
+     /* Remove order */
+     /* order: 1; */
+     flex-shrink: 0; /* Prevent tabs from shrinking */
+  }
+
+  .live-indicator {
+     /* Remove order */
+     /* order: 2; */
+     font-size: 8pt;
+     margin-left: 10px; /* Keep margin */
+     flex-shrink: 0; /* Prevent indicator from shrinking */
+  }
+  .live-text {
+    font-size: 8pt; 
+  }
+  .live-dot {
+     width: 8px; /* Smaller dot */
+     height: 8px;
+  }
+
+}
+
+/* REMOVE 768px block for now */
+/* @media (max-width: 768px) { ... } */
+
+/* Styles for very small screens */
+@media (max-width: 576px) {
+  #heatmap-description {
+    /* Hide description completely on very small screens? Or keep ellipsis? */
+    min-width: 20px; /* Allow shrinking further */
+  }
+  #heatmap-description p {
+    /* Ensure ellipsis still works */
+    font-size: 8pt;
+  }
+  #index-tabs {
+      /* Maybe reduce tab padding? */
+  }
+  .index-tab {
+      padding: 5px 8px; /* Smaller padding */
+      font-size: 9pt;
+  }
+
+  .live-indicator {
+     font-size: 6pt; /* Make very small */
+     margin-left: 4px; 
+  }
+  .live-text {
+    font-size: 6pt; /* Make very small */
+     white-space: nowrap; /* Force no wrap */
+  }
+  .live-dot {
+     width: 5px; /* Very small dot */
+     height: 5px;
+     margin-right: 3px;
+  }
+}
+
+/* ... any other existing code ... */
+
+/* --- DatePicker Custom Styles --- */
+
+/* Overall popup container */
+.react-datepicker-popper {
+  z-index: 1000 !important; /* Ensure popup is on top */
+}
+
+.react-datepicker {
+  font-family: 'Roboto', sans-serif !important;
+  background-color: #181818 !important; /* Darker background to match theme */
+  border: 1px solid #00cc00 !important; /* Changed border to 1px */
+  border-radius: 2px !important; /* Reduced radius further */
+}
+
+/* Header section (Month, Year, Arrows) */
+.react-datepicker__header {
+  background-color: #222 !important;
+  border-bottom: 1px solid #444 !important;
+  /* Adjust header radius to fit inside the main radius */
+  border-top-left-radius: 1px !important; /* Slightly less than main radius */
+  border-top-right-radius: 1px !important;
+}
+
+/* Month/Year text in header */
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header,
+.react-datepicker__day-name,
+.react-datepicker__navigation-icon::before {
+  color: #eee !important;
+}
+
+/* Navigation arrows - Adjust position */
+.react-datepicker__navigation-icon::before {
+ border-color: #ffffff !important; /* White arrows */
+ border-width: 2px 2px 0 0 !important;
+ height: 7px !important;
+ width: 7px !important;
+ /* top: 10px !important; */ /* Remove fixed top from icon */
+}
+.react-datepicker__navigation--previous {
+    left: 10px !important;
+    top: 7px !important; /* RAISE arrows */
+}
+.react-datepicker__navigation--next {
+    right: 10px !important;
+     top: 7px !important; /* RAISE arrows */
+}
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+    border-color: #bbbbbb !important; /* Lighter grey on hover */
+}
+
+/* Day Names (Mo, Tu, We...) */
+.react-datepicker__day-name {
+  color: #ffffff !important; /* White font */
+  font-weight: bold !important;
+  margin: 0.2rem !important;
+}
+
+/* Day Numbers container */
+.react-datepicker__month {
+  background-color: #0a0a0a !important; /* Ensure body bg */
+  margin: 0 !important; /* Remove default margin if needed */
+  padding: 5px; /* Add some padding around days */
+}
+
+/* Day Numbers */
+.react-datepicker__day {
+  color: #ccc !important;
+  margin: 0.2rem !important;
+  border-radius: 0.3rem !important;
+  width: 1.9rem !important; /* Adjust size if needed */
+  line-height: 1.9rem !important;
+}
+
+/* Day Hover - Make more distinct */
+.react-datepicker__day:hover {
+  background-color: #555 !important; /* Lighter grey for general hover */
+  border-radius: 0.3rem !important;
+  color: #fff !important;
+}
+
+/* --- Selected vs Keyboard-Selected Styling --- */
+
+/* ACTUALLY Selected Day (Keep Green) */
+.react-datepicker__day--selected {
+  background-color: #007700 !important; /* Darker green selection */
+  color: #fff !important;
+  font-weight: bold !important;
+  outline: none !important; /* Remove focus outline */
+}
+/* Hover state for ACTUALLY selected */
+.react-datepicker__day--selected:hover {
+    background-color: #005500 !important; /* Slightly darker green on hover */
+}
+/* Focus state for ACTUALLY selected */
+.react-datepicker__day--selected:focus {
+    background-color: #007700 !important; /* Keep green on focus */
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Keyboard-Selected Day (Use Dark Grey) */
+.react-datepicker__day--keyboard-selected {
+  background-color: #333 !important; /* Use the hover grey color */
+  color: #fff !important;
+  /* Remove bolding if it was inherited */
+   font-weight: normal !important; 
+  outline: none !important; /* Remove focus outline */
+}
+/* Hover state for keyboard-selected */
+.react-datepicker__day--keyboard-selected:hover {
+    background-color: #444 !important; /* Slightly lighter grey on hover? Or keep #333 */
+}
+/* Focus state for keyboard-selected */
+.react-datepicker__day--keyboard-selected:focus {
+    background-color: #333 !important; /* Keep grey on focus */
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Disabled Day (Future dates) */
+.react-datepicker__day--disabled {
+  color: #666 !important; /* Greyed out text */
+  background-color: transparent !important; /* Ensure no background hover */
+  pointer-events: none !important; /* Make unclickable and remove hover effects */
+}
+
+/* Today's Day (remove default outline) */
+.react-datepicker__day--today {
+  font-weight: bold !important;
+   outline: none;
+}
+
+/* Days outside current month */
+.react-datepicker__day--outside-month {
+  color: #666666 !important; 
+  cursor: default;
+}
+.react-datepicker__day--outside-month:hover {
+    background-color: transparent !important; 
+}
+
+/* Popper Arrow - Hide it completely */
+.react-datepicker-popper > .react-datepicker__triangle {
+    display: none !important;
+}
+
+/* REMOVE rule targeting the inner path as it's no longer needed */
+/* 
+.react-datepicker-popper[data-placement^="right"] > .react-datepicker__triangle path {
+    stroke: #00cc00 !important; 
+    fill: #181818 !important; 
+    stroke-width: 1px; 
+}
+*/
+
+/* --- End DatePicker Styles --- */
+
+/* ... any other existing code ... */
+
+/* --- Live Indicator Styles --- */
+/* ... existing styles ... */
+
+/* ... any other existing code ... */
+
+/* --- Index Tab Styles (Using pseudo-element for active) --- */
+.index-tab {
+  background-color: #2a2a2a; 
+  color: #999999; /* Changed from #ffffff */
+  /* Revert back to GREEN borders for top/left/right */
+  border-top: 0.5px solid #00cc00;
+  border-left: 0.5px solid #00cc00;
+  border-right: 0.5px solid #00cc00;
+  border-bottom: none; /* Keep bottom none */
+  padding: 8px 15px;
+  cursor: pointer;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  font-size: 10pt;
+  transition: background-color 0.2s, color 0.2s;
+  /* Set position but lower z-index for stacking context */
+  position: relative;
+  z-index: 0;
+}
+
+.index-tab:hover {
+  background-color: #383838;
+  color: #fff;
+  /* Ensure hover keeps GREEN border */
+  border-top-color: #00cc00;
+  border-left-color: #00cc00;
+  border-right-color: #00cc00;
+  border-bottom: none; /* Keep bottom none */
+}
+
+/* Override hover for the ACTIVE tab */
+.active:hover { 
+  background-color: #0a0a0a; 
+  color: #fff; 
+  cursor: default; 
+  /* Keep active borders (T, R, L), bottom handled by ::after */
+  border-top-color: #00cc00;
+  border-left-color: #00cc00;
+  border-right-color: #00cc00;
+  border-bottom: none; /* Ensure no bottom border on hover */
+}
+
+/* Style for the ACTIVE tab (Overrides .index-tab) */
+.active { 
+  background-color: #0a0a0a; 
+  color: #fff; 
+  /* Keep Green top/left/right borders */
+  border-top: 0.5px solid #00cc00;
+  border-left: 0.5px solid #00cc00;
+  border-right: 0.5px solid #00cc00;
+  /* REMOVE bottom border and margin */
+  border-bottom: none; 
+  /* Keep positioned for pseudo-element and stacking */
+  position: relative; 
+  z-index: 1; 
+}
+
+/* Pseudo-element to cover the header border */
+.active::after {
+  content: '';
+  position: absolute;
+  /* Position at bottom, slightly overlapping header line */
+  bottom: -0.5px;
+  left: 0;
+  width: 100%;
+  /* Height sufficient to cover 0.5px border */
+  height: 1px; 
+  /* Match active background to "erase" header line */
+  background-color: #0a0a0a; 
+  /* Ensure it sits above header line, below content if needed */
+  z-index: 2; 
+}
+
+/* ... any other existing code ... */ 
