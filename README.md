@@ -4,12 +4,18 @@ A multi-asset market intelligence platform for retail traders: live quotes acros
 crypto, and a signature **ticker overlay** that floats your watchlist over any website via a Chrome
 extension.
 
-**Working MVP, three applications.** A React + TypeScript web app on Supabase with a 1,122-line
-Deno edge function wrapping two unreliable upstream data providers; a Manifest V3 browser extension
-that injects the ticker overlay into any site; and a D3 treemap heat map with its own Express proxy,
-built against a paid market-data vendor. Six Postgres migrations, Sentry in production. Roughly
-**10,100 lines** of application and backend code plus **4,000 lines** of engineering documentation.
-Not shipped to users, not monetized, and the reasons are below.
+**Working MVP.** A React + TypeScript web app on Supabase with a 1,122-line Deno edge function
+wrapping two unreliable upstream data providers, and a Manifest V3 browser extension that injects
+the ticker overlay into any site and shares the web app's auth session. Six Postgres migrations,
+Sentry in production.
+
+`heatmap/` is a **third, separate codebase** kept in this repo because the whitepaper specced it as
+a dashboard: a D3 treemap with its own Express proxy, built against a paid market-data vendor eight
+months before the web app existed. It shares no code, no auth, and no build with the app, and it is
+not wired in.
+
+Roughly **10,100 lines** of application and backend code (excluding shadcn/ui boilerplate) plus
+engineering docs. Not shipped to users, not monetized, and the reasons are below.
 
 ---
 
@@ -20,11 +26,11 @@ Not shipped to users, not monetized, and the reasons are below.
 | [`supabase/functions/market-data/index.ts`](supabase/functions/market-data/index.ts) | The real engineering. Endpoint failover, a tiered retry ladder, three TTL-differentiated caches with negative caching, input sanitization, a CORS allowlist, and rate-limit headers, all wrapped around two upstreams I do not control. |
 | [`docs/PRD.md`](docs/PRD.md) | The product decision I would defend hardest: the app deliberately does **not** execute trades, connect to brokerages, store credentials, or compute P&L, specifically to stay outside SEC/FINRA broker-dealer regulation. Written as a hard constraint, not a roadmap note. |
 | [`supabase/migrations/20260105230000_enforce_ticker_limits.sql`](supabase/migrations/20260105230000_enforce_ticker_limits.sql) | Plan limits moved out of the client and into a Postgres trigger. See the **Corrections** section for how I got this wrong the first time. |
-| [`heatmap/`](heatmap/) | A market-cap-weighted, sector-grouped treemap across five indices, joined from two FMP endpoints, with an Express proxy written in response to real 429s. See [`heatmap/README.md`](heatmap/README.md). |
+| [`heatmap/`](heatmap/) | The earliest work here (April 2025), and a separate codebase — not wired into the web app. A market-cap-weighted treemap across five indices, joined from two FMP endpoints, with an Express proxy written in response to real 429s. See [`heatmap/README.md`](heatmap/README.md). |
 
 ## How this was built, and why the commit history looks the way it does
 
-`git log` shows 134 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
+`git log` shows 153 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
 the timeline explains it:
 
 - **2025-12-12 to 2025-12-22** — 126 bot commits. I used Lovable to try to accelerate an initial MVP.
@@ -93,6 +99,11 @@ service with 50-symbol batching, a 5-second inter-batch delay, explicit 429 hand
 cache, and input validation before any upstream call is spent. It is not yet wired to the frontend,
 which is the honest gap named in [`heatmap/README.md`](heatmap/README.md).
 
+A second, latent bug lives in that same handler and is worth naming rather than hiding: the EOD
+response has no market cap, so it falls back to `sizingValue = eod.volume ?? eod.close` and sets
+`changesPercentage: 0`. If the historical path were wired up it would size tiles by trading volume
+and render every tile neutral gray. It has never run, because the date picker does not refetch.
+
 ## Corrections
 
 Publishing this repo meant re-reading it. Two things were wrong, and both are fixed in the tree:
@@ -144,11 +155,15 @@ $12K/month in data licensing. It is also the reason the project paused.
 
 ## Why it is paused
 
-Building the heat map is what settled it. Wiring a real market-data vendor into a working prototype
-turned an estimate into a number: the licensed feeds the full platform needed ran to roughly
-$12K/month, against the $69/month plan the prototype was running on. The differentiator was the
-intelligence layer, and the intelligence layer needed that data. Shipping without it would have
-meant shipping another quote dashboard.
+The order matters, so here it is straight. The heat map came **first** — April 2025, its own repo,
+its own eight commits. That is where a real vendor got wired in and where an estimate became a
+number: the licensed feeds the full platform needed ran to roughly $12K/month, against the
+$69/month plan the prototype was on. The web app and extension were built later, December 2025
+through January 2026, with that number already known.
+
+What paused the project was the full picture rather than any single moment: the differentiator was
+the intelligence layer, the intelligence layer needed licensed data at that price, and shipping
+without it meant shipping another quote dashboard.
 
 So the project is paused pending capital, not abandoned. What still stands: three registered
 domains (tickerbuddy.co, usetickerbuddy.com, tickerbuddy.app), the 47-page product whitepaper, the

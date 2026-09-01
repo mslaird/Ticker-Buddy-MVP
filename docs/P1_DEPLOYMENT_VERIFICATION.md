@@ -30,7 +30,7 @@ Local          | Remote         | Time (UTC)
 ### 2. Ticker Limit Enforcement (20260105230000)
 - `check_ticker_limit()` function
 - `enforce_ticker_limit_on_insert` trigger
-- Database-level constraint (cannot be bypassed)
+- Database-level constraint (bypassable as originally shipped; see the correction in P1_IMPLEMENTATION.md and migration 20260831120000)
 
 ### 3. Profile Creation Retry Logic
 - Updated `AuthContext.tsx`
