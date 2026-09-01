@@ -14,12 +14,13 @@ a dashboard: a D3 treemap with its own Express proxy, built against a paid marke
 months before the web app existed. It shares no code, no auth, and no build with the app, and it is
 not wired in.
 
-Roughly **10,100 lines** of application and backend code (excluding shadcn/ui boilerplate) plus
-engineering docs. Not shipped to users, not monetized, and the reasons are below.
+Roughly **10,800 lines** of application and backend code excluding shadcn/ui boilerplate, plus
+engineering docs. That splits as **8,495** for the web app, extension and backend, and **2,340** for
+the separate `heatmap/` codebase described above. Not shipped to users, not monetized, and the reasons are below.
 
 ---
 
-## Start here, if you only read three files
+## Start here, if you only read four files
 
 | | |
 |---|---|
@@ -30,11 +31,11 @@ engineering docs. Not shipped to users, not monetized, and the reasons are below
 
 ## How this was built, and why the commit history looks the way it does
 
-`git log` shows 153 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
+`git log` shows 155 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
 the timeline explains it:
 
 - **2025-12-12 to 2025-12-22** — 126 bot commits. I used Lovable to try to accelerate an initial MVP.
-  Median commit subject length is 22 characters and every other commit is titled "Changes."
+  Median commit subject length is 21 characters and 61 of them are titled exactly "Changes."
 - **2025-12-22** — I stopped. Lovable could not carry the detail or the scope the product needed.
 - **2026-01-06 to 2026-01-12** — three commits, **~11,800 insertions**, written by directing coding
   agents against a spec I wrote:
@@ -52,7 +53,9 @@ The bot commits are UI scaffolding from a tool I abandoned. Both facts are check
 through two hosts × three attempts with a `[0, 500, 1000]ms` backoff ladder and explicit 429 handling
 ([`index.ts:454`](supabase/functions/market-data/index.ts#L454)). Crucially it distinguishes a
 *network failure* from a *symbol that does not exist* and carries that distinction all the way to a
-differentiated message in the UI.
+differentiated message in the UI. Worth naming the limit: that split is only made when Yahoo answers
+`200` with no price. A hard `404` falls through the retry loop and is reported as a network failure,
+so an unknown ticker can still surface the wrong message.
 
 **Caching with justified TTLs, including negative caching.** Quotes 15s, market cap 60s, Yahoo auth
 crumb 300s. Failed symbol lookups are cached as `null` so a dead ticker cannot be hammered.
@@ -63,16 +66,21 @@ uses the authenticated quote endpoint. It works. It is also against Yahoo's term
 change from breaking, with no fallback provider — which is exactly why a licensed provider was in the
 architecture and a free one was in the prototype.
 
-**Graduated alerting rather than one threshold.** Quota telemetry escalates through three
-destinations as headroom drops: dev console under 20%, a Sentry breadcrumb under 30%, a Sentry error
-under 10% ([`useMarketData.ts`](src/hooks/useMarketData.ts)).
+**Tiered alerting rather than one threshold.** Quota telemetry routes to three destinations as
+headroom drops: a Sentry breadcrumb under 30%, a dev-console warning under 20%, a Sentry error under
+10% ([`useMarketData.ts`](src/hooks/useMarketData.ts)). They are independent thresholds, not a
+ladder, so below 10% all three fire. Auditing this repo I found the Sentry error was written
+`< 10 && > 0`, which meant the one state you most want paged on, quota fully exhausted, was the one
+state that stayed silent. Fixed.
 
 **A circuit breaker on the client.** Exponential backoff capped at 8×, polling halts after three
 consecutive failures, and a 30-second toast cooldown so a failing upstream cannot spam the user.
 
-**An eventual-consistency window, handled.** `handle_new_user()` creates the profile row via an
-async trigger on `auth.users`, so signup polls for that row with increasing delays rather than
-assuming it exists ([`AuthContext.tsx`](src/contexts/AuthContext.tsx)).
+**An eventual-consistency window, handled.** `handle_new_user()` creates the profile row from an
+`AFTER INSERT` trigger on `auth.users`, so signup polls for that row with increasing delays rather
+than assuming it exists. The trigger is synchronous within the inserting transaction; the polling is
+there because the client's session and the row's visibility to it are not guaranteed to land
+together ([`AuthContext.tsx`](src/contexts/AuthContext.tsx)).
 
 **Sentry configured for privacy and cost.** `maskAllText`, `blockAllMedia`, 10% session replay and
 100% on error, 10% traces in production against 100% in dev, and a `beforeSend` that drops offline
@@ -94,7 +102,7 @@ keeping both double-counts Alphabet's weight. TradingView and Finviz dedupe the 
 and reduces every other country to an unreadable sliver.
 
 **The proxy exists because of a real 429.** Commit
-[`8ea3ae9`](../../commit/8ea3ae9) is titled *"WIP - encountering 429"*. What followed is an Express
+[`8ea3ae9`](../../commit/8ea3ae9) ends *"(WIP - encountering 429)"*. What followed is an Express
 service with 50-symbol batching, a 5-second inter-batch delay, explicit 429 handling, a 1-hour
 cache, and input validation before any upstream call is spent. It is not yet wired to the frontend,
 which is the honest gap named in [`heatmap/README.md`](heatmap/README.md).
@@ -113,7 +121,16 @@ Publishing this repo meant re-reading it. Two things were wrong, and both are fi
 could write, not *which columns*. One line from a browser console
 (`update({ plan: 'pro' })`) self-promoted a user and raised their own limit.
 [`20260831120000_fix_profiles_update_policy.sql`](supabase/migrations/20260831120000_fix_profiles_update_policy.sql)
-revokes column-level UPDATE on `plan` and adds the missing `WITH CHECK`.
+drops the table-level UPDATE grant and re-grants only `overlay_settings` and `display_name`, then
+adds the missing `WITH CHECK` pinning `plan` to its current value.
+
+The first fix I wrote for this was wrong and is worth the paragraph. `REVOKE UPDATE (plan)` looks
+like the obvious answer and is a no-op: a column-level revoke only removes a column-level grant, and
+Supabase issues a **table-level** `GRANT UPDATE ON public.profiles TO authenticated` that implicitly
+covers every column. I checked it against the live database rather than assuming the DDL took, and
+`has_column_privilege('authenticated','public.profiles','plan','UPDATE')` still returned true after
+the revoke reported success. The grant has to be dropped and the allowed columns re-granted
+explicitly.
 
 **Rate-limit and server-error handling was dead code.** `useMarketData` destructured `status` from a
 Supabase `FunctionsResponse`, which has no such property, so `status === 429` never fired and the 5xx
@@ -136,6 +153,28 @@ bare `vite build` and strips types without checking them, which is why this surv
 - **No alerts.** Advertised in Settings, disabled in the nav, not implemented at any tier.
 - **The extension will not pass Chrome review as-is** — SVG icons where MV3 requires PNG, and
   hardcoded localhost URLs in the popup.
+
+## What I would fix before this took real traffic
+
+Auditing my own repo turned up three things in the edge function that are fine for a prototype on a
+free tier and would not be fine in front of users. None is exploited, the project is paused, and I
+would rather name them than have them found.
+
+**The function is unauthenticated.** `supabase/config.toml` sets `verify_jwt = false` for
+`market-data`, so anyone with the URL can call it. That was deliberate during development and is the
+first thing I would reverse.
+
+**The rate limiter is bypassable.** `getClientIdentifier()` keys buckets on
+`` `auth:${ip}:${authHeader.substring(0, 20)}` ``. The first 20 characters of every Supabase JWT are
+identical, so the auth component contributes no entropy between real users — and a caller sending
+arbitrary `Authorization` values can mint unlimited distinct buckets. It is also an in-memory `Map`,
+so the limit is per isolate rather than global. The fix is to verify the JWT and key on the `sub`
+claim, with the counter in Postgres or Redis.
+
+**The CORS allowlist fails open to localhost.** The four `localhost`/`127.0.0.1` development origins
+are appended unconditionally, even when `ALLOWED_ORIGINS` is set, and a disallowed origin falls back
+to `allAllowedOrigins[0]` — which is `http://localhost:8080`. Development origins should be gated on
+a non-production environment flag.
 
 ## Stack
 
@@ -167,9 +206,10 @@ without it meant shipping another quote dashboard.
 
 So the project is paused pending capital, not abandoned. What still stands: three registered
 domains (tickerbuddy.co, usetickerbuddy.com, tickerbuddy.app), the 47-page product whitepaper, the
-Figma design system, and a USPTO application that was **approved** — the examiner's search returned
-*"No Conflicting Marks Found"* — under serial 99094976. It lapsed only because a Statement of Use
-was due within six months of approval and the product was never sold.
+Figma design system, and a USPTO application that **cleared examination** — the examiner's search
+returned *"No Conflicting Marks Found"* and it advanced to a Notice of Allowance — under serial
+99094976. It never registered, and lapsed, only because a Statement of Use was due within six months
+and the product was never sold. Serial 99094976 is checkable in USPTO TSDR.
 
 Design files and the whitepaper are available on request.
 

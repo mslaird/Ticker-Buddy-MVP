@@ -201,7 +201,7 @@ export function useMarketData(tickers: Ticker[], isActive: boolean, pollInterval
         }
 
         // Send to Sentry if critically low
-        if (percentRemaining < 10 && percentRemaining > 0) {
+        if (percentRemaining < 10) {
           captureError(new Error('Rate limit critically low'), {
             remaining,
             limit,
