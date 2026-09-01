@@ -748,12 +748,48 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             });
       listHtml += "</ul>";
 
-      // Show and Position Popup
+      // --- Show and Position Popup --- 
       if (!sectorPopup.empty()) {
-          sectorPopup.transition().duration(100).style("opacity", 0.95);
-          sectorPopup.html(listHtml) 
-                     .style("left", `${event.pageX + 20}px`)
-                     .style("top", `${event.pageY - 15}px`);
+           // Set content first to allow measurement
+           sectorPopup.html(listHtml);
+
+           // Make popup visible to measure, but keep slightly offscreen initially
+           sectorPopup
+                .style("left", "-9999px") 
+                .style("top", "-9999px") 
+                .style("opacity", 0.9);
+
+           // Get dimensions
+           const popupNode = sectorPopup.node() as HTMLDivElement;
+           const popupWidth = popupNode.offsetWidth;
+           const popupHeight = popupNode.offsetHeight;
+           const viewportWidth = window.innerWidth;
+           const viewportHeight = window.innerHeight;
+           const offsetX = 15; // Horizontal offset from cursor
+           const offsetY = 15; // Vertical offset from cursor
+
+           // Calculate initial desired position (below and right)
+           let targetLeft = event.pageX + offsetX;
+           let targetTop = event.pageY + offsetY;
+
+           // Adjust horizontal position if it goes off-screen right
+           if (targetLeft + popupWidth > viewportWidth) {
+               targetLeft = event.pageX - popupWidth - offsetX;
+               // Prevent going off-screen left
+               if (targetLeft < 0) targetLeft = 5;
+           }
+
+           // Adjust vertical position if it goes off-screen bottom
+           if (targetTop + popupHeight > viewportHeight) {
+               targetTop = event.pageY - popupHeight - offsetY;
+               // Prevent going off-screen top
+                if (targetTop < 0) targetTop = 5;
+           }
+
+           // Apply final calculated position
+           sectorPopup
+                .style("left", `${targetLeft}px`)
+                .style("top", `${targetTop}px`);
       }
   }, [
       formatPercentage, 
@@ -903,29 +939,30 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
     cell.append("rect")
         .attr("class", "tile-fill-rect")
-        .attr("x", 0.5).attr("y", 0.5)
-        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 1))
-        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 1))
+        .attr("x", 1)
+        .attr("y", 1)
+        .attr("width", d => Math.max(0, (d.x1 - d.x0) - 2))
+        .attr("height", d => Math.max(0, (d.y1 - d.y0) - 2))
         .attr("fill", d => calculateColor(d.data.changesPercentage ?? 0))
         .attr("stroke", "none")
         .on("mouseover", function(event, d: LeafNode) {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
-              .attr("fill", "#ffffff"); 
+              .attr("fill", "#ffffff");
             const percentage = d.data.changesPercentage ?? 0;
             const formattedPercentage = formatPercentage(percentage);
             const changeSpan = `<span>${formattedPercentage}</span>`;
-            
+
             // --- Custom Market Cap Formatting ---
             const formatMarketCap = (value: number | undefined): string => {
               const num = value ?? 0;
               if (num >= 1e12) { // Trillions
-                  return (num / 1e12).toFixed(2) + 'T'; 
+                  return (num / 1e12).toFixed(2) + 'T';
               } else if (num >= 1e9) { // Billions
-                  return (num / 1e9).toFixed(1) + 'B'; 
+                  return (num / 1e9).toFixed(1) + 'B';
               } else if (num >= 1e6) { // Millions
-                  return (num / 1e6).toFixed(1) + 'M'; 
+                  return (num / 1e6).toFixed(1) + 'M';
               } else if (num >= 1e3) { // Thousands
-                  return (num / 1e3).toFixed(0) + 'k'; 
+                  return (num / 1e3).toFixed(0) + 'k';
               } else { // < 1000
                   return num.toFixed(0);
               }
@@ -934,27 +971,64 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
             let tooltipHtml = '';
             // Use the custom formatting function
-            const marketCapFormatted = formatMarketCap(d.data.marketCap); 
+            const marketCapFormatted = formatMarketCap(d.data.marketCap);
 
             // Combine ETF and Live Stock logic (show Mkt Cap for both)
-            if (selectedDate === null) { 
+            if (selectedDate === null) {
                  const companyName = d.data.name ? ` (${d.data.name})` : ''; // Add name if available
                  tooltipHtml = `<strong>${d.data.symbol}${companyName}</strong><br/>${changeSpan}<br/>Mkt Cap: ${marketCapFormatted}`;
             } else {
                 // Historical view: Show Symbol, EOD Value (Close/Volume used for size)
                  // NOTE: Historical sizing might be inconsistent now as it uses marketCap field
-                 const historicalValue = d.data.marketCap ?? 0; 
+                 const historicalValue = d.data.marketCap ?? 0;
                  const valueFormatted = historicalValue > 10000 ? d3.format(".3s")(historicalValue) : historicalValue.toFixed(2);
                  tooltipHtml = `<strong>${d.data.symbol}</strong><br/>EOD Val: ${valueFormatted}<br/>(${formattedDate})`;
             }
-            
-            tileTooltip.transition().duration(100).style("opacity", 0.9);
-            tileTooltip.html(tooltipHtml)
-                   .style("left", `${event.pageX + 15}px`)
-                   .style("top", `${event.pageY - 30}px`);
-                   
+
+            // --- DYNAMIC POSITIONING LOGIC ---
+            // Set content first
+            tileTooltip.html(tooltipHtml);
+
+            // Position offscreen to measure
+            tileTooltip.style("left", "-9999px").style("top", "-9999px").style("opacity", 0); // Keep hidden while measuring
+
+            const popupNode = tileTooltip.node() as HTMLDivElement;
+            if (!popupNode) return; // Should not happen, but safety check
+
+            const popupWidth = popupNode.offsetWidth;
+            const popupHeight = popupNode.offsetHeight;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const offsetX = 15; // Preferred horizontal offset
+            const offsetY = -30; // Preferred vertical offset (above cursor)
+
+            // Calculate initial desired position
+            let targetLeft = event.pageX + offsetX;
+            let targetTop = event.pageY + offsetY;
+
+            // Adjust horizontal position if it goes off-screen right
+            if (targetLeft + popupWidth > viewportWidth) {
+                targetLeft = event.pageX - popupWidth - offsetX; // Place left of cursor
+                 if (targetLeft < 0) targetLeft = 5; // Prevent going off-screen left
+            }
+
+             // Adjust vertical position if it goes off-screen bottom OR top
+             if (targetTop + popupHeight > viewportHeight) {
+                 targetTop = viewportHeight - popupHeight - 5; // Stick near bottom
+             } else if (targetTop < 0) {
+                 targetTop = 5; // Stick near top
+             }
+
+
+            // Apply final position and make visible
+            tileTooltip.style("left", `${targetLeft}px`)
+                       .style("top", `${targetTop}px`)
+                       .transition().duration(100).style("opacity", 0.9);
+            // --- END DYNAMIC POSITIONING LOGIC ---
+
+
             // Apply styles using the helper function
-            const spanElement = tileTooltip.select('span'); 
+            const spanElement = tileTooltip.select('span');
             const styleProps = getPercentageStyle(percentage);
             spanElement
                 .style('color', styleProps.color)
@@ -962,12 +1036,38 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                 .style('text-shadow', styleProps.textShadow);
         })
         .on("mousemove", function(event) {
-             tileTooltip.style("left", `${event.pageX + 15}px`)
-                    .style("top", `${event.pageY - 30}px`);
+            // --- RECALCULATE DYNAMIC POSITION ON MOUSEMOVE ---
+            const popupNode = tileTooltip.node() as HTMLDivElement;
+            if (!popupNode) return;
+
+            const popupWidth = popupNode.offsetWidth;
+            const popupHeight = popupNode.offsetHeight;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const offsetX = 15;
+            const offsetY = -30;
+
+            let targetLeft = event.pageX + offsetX;
+            let targetTop = event.pageY + offsetY;
+
+            if (targetLeft + popupWidth > viewportWidth) {
+                targetLeft = event.pageX - popupWidth - offsetX;
+                 if (targetLeft < 0) targetLeft = 5;
+            }
+            if (targetTop + popupHeight > viewportHeight) {
+                 targetTop = viewportHeight - popupHeight - 5;
+            } else if (targetTop < 0) {
+                 targetTop = 5;
+            }
+
+            // Apply updated position
+            tileTooltip.style("left", `${targetLeft}px`)
+                       .style("top", `${targetTop}px`);
+             // --- END DYNAMIC POSITIONING LOGIC ---
         })
         .on("mouseout", function(_event, d: LeafNode) {
             d3.select(this.parentNode as Element).select(".tile-border-rect")
-               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0)); 
+               .attr("fill", calculateStrokeColor(d.data.changesPercentage ?? 0));
             tileTooltip.transition().duration(200).style("opacity", 0);
         });
 
