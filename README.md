@@ -31,7 +31,7 @@ the separate `heatmap/` codebase described above. Not shipped to users, not mone
 
 ## How this was built, and why the commit history looks the way it does
 
-`git log` shows 155 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
+`git log` shows over 150 commits, 126 of them authored by `gpt-engineer-app[bot]`. That is accurate, and
 the timeline explains it:
 
 - **2025-12-12 to 2025-12-22** — 126 bot commits. I used Lovable to try to accelerate an initial MVP.
@@ -171,10 +171,15 @@ arbitrary `Authorization` values can mint unlimited distinct buckets. It is also
 so the limit is per isolate rather than global. The fix is to verify the JWT and key on the `sub`
 claim, with the counter in Postgres or Redis.
 
-**The CORS allowlist fails open to localhost.** The four `localhost`/`127.0.0.1` development origins
-are appended unconditionally, even when `ALLOWED_ORIGINS` is set, and a disallowed origin falls back
-to `allAllowedOrigins[0]` — which is `http://localhost:8080`. Development origins should be gated on
-a non-production environment flag.
+**The CORS allowlist keeps development origins in production, and never refuses.** The four
+`localhost`/`127.0.0.1` origins are appended unconditionally, even when `ALLOWED_ORIGINS` is set, so
+a deployed function still trusts a developer's machine. And a disallowed origin is not rejected: it
+is answered with `allAllowedOrigins[0]`. I first wrote here that index 0 is `http://localhost:8080`;
+re-reading it, that is only true when `ALLOWED_ORIGINS` is unset, because the env origins are
+prepended. With it set, index 0 is the first production origin. The defect is the shape — returning
+a permissive header to an origin you have just decided is not allowed — not the specific value.
+Development origins should be gated on an environment flag, and a disallowed origin should get no
+CORS header at all.
 
 ## Stack
 
