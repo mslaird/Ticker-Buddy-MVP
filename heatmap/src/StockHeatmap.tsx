@@ -362,7 +362,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         .sum(sizeMetricAccessor) // Use conditional size metric
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
-    console.log(`>>> transformData completed (Using ${currentActiveIndex === 'WORLD' ? 'sqrt(MarketCap)' : 'MarketCap'}). Root node:`, hierarchy);
+    import.meta.env.DEV && console.log(`>>> transformData completed (Using ${currentActiveIndex === 'WORLD' ? 'sqrt(MarketCap)' : 'MarketCap'}). Root node:`, hierarchy);
     return hierarchy;
   };
 
@@ -409,7 +409,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
       // --- HANDLE ETF CASE --- 
       if (activeIndex === 'ETF') {
-        console.log(">>> Fetching ETF data...");
+        import.meta.env.DEV && console.log(">>> Fetching ETF data...");
         // Placeholder list based roughly on Finviz categories
         // TODO: Refine this list and categorization method
         const etfSymbols = [
@@ -438,7 +438,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             if (!quoteResponse.ok) throw new Error(`Failed to fetch ETF quotes: ${quoteResponse.status}`);
             const quoteData = await quoteResponse.json();
             if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ETF quotes.`);
-            console.log(`>>> Received ${quoteData.length} ETF quotes. Combining...`);
+            import.meta.env.DEV && console.log(`>>> Received ${quoteData.length} ETF quotes. Combining...`);
 
             // Use the etfCategoryMap 
             const etfDataWithCategories: StockQuote[] = quoteData.map((quote: any) => {
@@ -457,12 +457,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             }).filter((etf): etf is StockQuote => etf !== null); // Revert type guard
 
             if (etfDataWithCategories.length === 0) throw new Error('No valid ETF data remaining.');
-            console.log(`>>> Using ${etfDataWithCategories.length} ETFs. Transforming...`);
+            import.meta.env.DEV && console.log(`>>> Using ${etfDataWithCategories.length} ETFs. Transforming...`);
 
             const hierarchicalData = transformData(etfDataWithCategories, activeIndex);
             if (!hierarchicalData) throw new Error('Failed to transform ETF data.');
 
-            console.log(`>>> ETF Data fetch successful.`);
+            import.meta.env.DEV && console.log(`>>> ETF Data fetch successful.`);
             setStockData(hierarchicalData);
             setError(null);
 
@@ -479,7 +479,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
       // --- HANDLE WORLD MAP CASE --- 
       else if (activeIndex === 'WORLD') {
-        console.log(">>> Fetching World Map data...");
+        import.meta.env.DEV && console.log(">>> Fetching World Map data...");
         
         // --- Fetch FX Rates --- 
         let fxRates: { [currency: string]: number } = { 'USD': 1.0 }; // Base case
@@ -494,7 +494,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
         if (currenciesNeeded.size > 0) {
             const fxPairs = Array.from(currenciesNeeded).map(curr => `${curr}USD`);
             const FX_URL = `${API_BASE_URL}/fx/${fxPairs.join(',')}?apikey=${API_KEY}`;
-            console.log(`>>> Fetching FX rates for: ${fxPairs.join(', ')}`);
+            import.meta.env.DEV && console.log(`>>> Fetching FX rates for: ${fxPairs.join(', ')}`);
             try {
                  const fxResponse = await fetch(FX_URL);
                  if (!fxResponse.ok) throw new Error(`Failed to fetch FX rates: ${fxResponse.status}`);
@@ -508,7 +508,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
                          fxRates[currency] = 1 / pair.bid; 
                      }
                  });
-                 console.log(">>> FX Rates (Local Currency per USD - Calculated):", fxRates);
+                 import.meta.env.DEV && console.log(">>> FX Rates (Local Currency per USD - Calculated):", fxRates);
             } catch (fxErr: any) {
                  console.error(">>> Failed to fetch or process FX rates:", fxErr);
                  // Proceed without conversion, results will be skewed
@@ -524,12 +524,12 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             if (!quoteResponse.ok) throw new Error(`Failed to fetch World quotes: ${quoteResponse.status}`);
             const quoteData = await quoteResponse.json();
             if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for World quotes.`);
-            console.log(`>>> Received ${quoteData.length} World quotes. Raw Data:`, quoteData); // LOG RAW QUOTES
+            import.meta.env.DEV && console.log(`>>> Received ${quoteData.length} World quotes. Raw Data:`, quoteData); // LOG RAW QUOTES
 
             // Log BABA quote data for debugging
             const babaQuote = quoteData.find((q: any) => q.symbol === 'BABA');
-            console.log('>>> BABA Quote Data:', babaQuote);
-            console.log('>>> CNY FX Rate Used:', fxRates['CNY']);
+            import.meta.env.DEV && console.log('>>> BABA Quote Data:', babaQuote);
+            import.meta.env.DEV && console.log('>>> CNY FX Rate Used:', fxRates['CNY']);
 
             // Use worldCountryMap and FX rates
             const worldDataMapped: (StockQuote | null)[] = quoteData.map((quote: any): StockQuote | null => { 
@@ -557,7 +557,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
 
                 // LOG CONVERSION DETAILS
                 if (currency !== 'USD') {
-                    console.log(`Converting ${quote.symbol} (${currency}): Orig Cap=${originalMarketCap.toExponential(2)}, Rate=${rate?.toFixed(4)}, USD Cap=${marketCapInUSD.toExponential(2)}`);
+                    import.meta.env.DEV && console.log(`Converting ${quote.symbol} (${currency}): Orig Cap=${originalMarketCap.toExponential(2)}, Rate=${rate?.toFixed(4)}, USD Cap=${marketCapInUSD.toExponential(2)}`);
                 }
 
                 const stockQuote: StockQuote = {
@@ -572,15 +572,15 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             
             // Filter out nulls - Type predicate matches StockQuote
             const worldDataWithCountries: StockQuote[] = worldDataMapped.filter((stock): stock is StockQuote => stock !== null); 
-            console.log(`>>> Mapped & Filtered World Data (${worldDataWithCountries.length} stocks):`, worldDataWithCountries); // LOG FILTERED DATA
+            import.meta.env.DEV && console.log(`>>> Mapped & Filtered World Data (${worldDataWithCountries.length} stocks):`, worldDataWithCountries); // LOG FILTERED DATA
 
             if (worldDataWithCountries.length === 0) throw new Error('No valid World data remaining.');
-            console.log(`>>> Using ${worldDataWithCountries.length} World stocks. Transforming...`);
+            import.meta.env.DEV && console.log(`>>> Using ${worldDataWithCountries.length} World stocks. Transforming...`);
 
             const hierarchicalData = transformData(worldDataWithCountries, activeIndex);
             if (!hierarchicalData) throw new Error('Failed to transform World data.');
 
-            console.log(`>>> World Map Data fetch successful.`);
+            import.meta.env.DEV && console.log(`>>> World Map Data fetch successful.`);
             setStockData(hierarchicalData);
             setError(null);
 
@@ -606,7 +606,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
           return;
       }
 
-        console.log(`>>> Fetching ${indexName} constituents...`);
+        import.meta.env.DEV && console.log(`>>> Fetching ${indexName} constituents...`);
         let symbols: string[] = [];
         // Revert to just storing sector
         let sectorMap: { [key: string]: string } = {}; 
@@ -625,14 +625,14 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
               }
           });
           if (symbols.length === 0) throw new Error(`No symbols found for ${indexName}.`);
-          console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching quotes...`);
+          import.meta.env.DEV && console.log(`>>> Fetched ${symbols.length} ${indexName} symbols. Fetching quotes...`);
 
           const QUOTE_URL = `${API_BASE_URL}/quote/${symbols.join(',')}?apikey=${API_KEY}`;
           const quoteResponse = await fetch(QUOTE_URL);
           if (!quoteResponse.ok) throw new Error(`Failed to fetch ${indexName} quotes: ${quoteResponse.status}`);
           const quoteData = await quoteResponse.json();
           if (!Array.isArray(quoteData)) throw new Error(`Invalid data format for ${indexName} quotes.`);
-          console.log(`>>> Received ${quoteData.length} ${indexName} quotes. Combining...`);
+          import.meta.env.DEV && console.log(`>>> Received ${quoteData.length} ${indexName} quotes. Combining...`);
 
           // Combine quote data with sector info
           const combinedDataWithNulls = quoteData.map((quote: any) => {
@@ -655,11 +655,11 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
           
           combinedData = combinedData.filter(stock => stock.symbol !== 'GOOG'); // Keep GOOG filter
           if (combinedData.length === 0) throw new Error(`No valid stocks remaining for ${indexName}.`);
-          console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
+          import.meta.env.DEV && console.log(`>>> Using ${combinedData.length} ${indexName} stocks. Transforming...`);
 
           const hierarchicalData = transformData(combinedData, activeIndex);
           if (!hierarchicalData) throw new Error(`Failed to transform ${indexName} data.`);
-          console.log(`>>> Data fetch successful for ${indexName}.`);
+          import.meta.env.DEV && console.log(`>>> Data fetch successful for ${indexName}.`);
           setStockData(hierarchicalData); setError(null);
       } catch (err: any) {
             console.error(`>>> FetchData Error (${indexName}):`, err);
@@ -1092,7 +1092,7 @@ const StockHeatmap: React.FC<StockHeatmapProps> = (props) => {
             const calculatedFontSize = Math.min(w * 0.22, h * 0.40, MAX_FONT_SIZE);
             const finalFontSize = calculatedFontSize >= MIN_VISIBLE_FONT_SIZE ? calculatedFontSize : 0;
             const isVisible = finalFontSize > 0;
-            if (i < 5) { /* console.log(...) */ }
+            if (i < 5) { /* import.meta.env.DEV && console.log(...) */ }
             textContainer.style("opacity", isVisible ? 1 : 0)
                          .style("font-size", `${finalFontSize}px`);
             let tickerSpan = textContainer.select<HTMLSpanElement>("span.ticker");
