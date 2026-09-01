@@ -5,6 +5,8 @@ React 19. Part of the [Ticker Buddy](../README.md) platform: the whitepaper spec
 dashboard feature. It was built standalone as a working prototype and is **not** wired into the
 web app — it runs on its own dev server. Integrating it was future work when the project paused.
 
+**[Watch it run](https://www.loom.com/share/99e2d64e2b504590b053f5e3399aa6dd)** — a 2025 screen recording of the treemap pulling live market data.
+
 Five maps: **S&P 500**, **Dow 30**, **Nasdaq 100**, an **ETF map** grouped by
 class and strategy, and a **World map** grouped Region → Country → Ticker.
 

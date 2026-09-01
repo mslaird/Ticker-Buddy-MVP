@@ -26,7 +26,7 @@ engineering docs. Not shipped to users, not monetized, and the reasons are below
 | [`supabase/functions/market-data/index.ts`](supabase/functions/market-data/index.ts) | The real engineering. Endpoint failover, a tiered retry ladder, three TTL-differentiated caches with negative caching, input sanitization, a CORS allowlist, and rate-limit headers, all wrapped around two upstreams I do not control. |
 | [`docs/PRD.md`](docs/PRD.md) | The product decision I would defend hardest: the app deliberately does **not** execute trades, connect to brokerages, store credentials, or compute P&L, specifically to stay outside SEC/FINRA broker-dealer regulation. Written as a hard constraint, not a roadmap note. |
 | [`supabase/migrations/20260105230000_enforce_ticker_limits.sql`](supabase/migrations/20260105230000_enforce_ticker_limits.sql) | Plan limits moved out of the client and into a Postgres trigger. See the **Corrections** section for how I got this wrong the first time. |
-| [`heatmap/`](heatmap/) | The earliest work here (April 2025), and a separate codebase — not wired into the web app. A market-cap-weighted treemap across five indices, joined from two FMP endpoints, with an Express proxy written in response to real 429s. See [`heatmap/README.md`](heatmap/README.md). |
+| [`heatmap/`](heatmap/) — **[demo video](https://www.loom.com/share/99e2d64e2b504590b053f5e3399aa6dd)** | The earliest work here (April 2025), and a separate codebase — not wired into the web app. A market-cap-weighted treemap across five indices, joined from two FMP endpoints, with an Express proxy written in response to real 429s. See [`heatmap/README.md`](heatmap/README.md). |
 
 ## How this was built, and why the commit history looks the way it does
 
