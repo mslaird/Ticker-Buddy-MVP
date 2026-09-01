@@ -4,10 +4,12 @@ A multi-asset market intelligence platform for retail traders: live quotes acros
 crypto, and a signature **ticker overlay** that floats your watchlist over any website via a Chrome
 extension.
 
-**Working MVP.** React + TypeScript on Supabase, a 1,122-line Deno edge function wrapping two
-unreliable upstream data providers, a Manifest V3 browser extension, six Postgres migrations, and
-Sentry in production. Roughly **7,500 lines** of application and backend code plus **4,000 lines** of
-engineering documentation. Not shipped to users, not monetized, and the reasons are below.
+**Working MVP, three applications.** A React + TypeScript web app on Supabase with a 1,122-line
+Deno edge function wrapping two unreliable upstream data providers; a Manifest V3 browser extension
+that injects the ticker overlay into any site; and a D3 treemap heat map with its own Express proxy,
+built against a paid market-data vendor. Six Postgres migrations, Sentry in production. Roughly
+**10,100 lines** of application and backend code plus **4,000 lines** of engineering documentation.
+Not shipped to users, not monetized, and the reasons are below.
 
 ---
 
@@ -18,6 +20,7 @@ engineering documentation. Not shipped to users, not monetized, and the reasons 
 | [`supabase/functions/market-data/index.ts`](supabase/functions/market-data/index.ts) | The real engineering. Endpoint failover, a tiered retry ladder, three TTL-differentiated caches with negative caching, input sanitization, a CORS allowlist, and rate-limit headers, all wrapped around two upstreams I do not control. |
 | [`docs/PRD.md`](docs/PRD.md) | The product decision I would defend hardest: the app deliberately does **not** execute trades, connect to brokerages, store credentials, or compute P&L, specifically to stay outside SEC/FINRA broker-dealer regulation. Written as a hard constraint, not a roadmap note. |
 | [`supabase/migrations/20260105230000_enforce_ticker_limits.sql`](supabase/migrations/20260105230000_enforce_ticker_limits.sql) | Plan limits moved out of the client and into a Postgres trigger. See the **Corrections** section for how I got this wrong the first time. |
+| [`heatmap/`](heatmap/) | A market-cap-weighted, sector-grouped treemap across five indices, joined from two FMP endpoints, with an Express proxy written in response to real 429s. See [`heatmap/README.md`](heatmap/README.md). |
 
 ## How this was built, and why the commit history looks the way it does
 
@@ -69,6 +72,27 @@ assuming it exists ([`AuthContext.tsx`](src/contexts/AuthContext.tsx)).
 100% on error, 10% traces in production against 100% in dev, and a `beforeSend` that drops offline
 and expected-auth noise.
 
+### The heat map, and the rate limit that shaped it
+
+`heatmap/` renders S&P 500, Dow 30, Nasdaq 100, an ETF map, and a World map. Four decisions in it
+are worth more than the code:
+
+**The data needs two endpoints joined.** FMP's constituent endpoints return index membership and
+GICS sector but no prices; the quote endpoint returns prices but no sector. Neither draws this map
+alone, so they are joined on symbol.
+
+**GOOG is filtered out.** Both Alphabet share classes appear in the S&P constituent list, and
+keeping both double-counts Alphabet's weight. TradingView and Finviz dedupe the same way.
+
+**The World map sizes by `sqrt(marketCap)`.** Linear weighting lets US mega-caps swallow the canvas
+and reduces every other country to an unreadable sliver.
+
+**The proxy exists because of a real 429.** Commit
+[`8ea3ae9`](../../commit/8ea3ae9) is titled *"WIP - encountering 429"*. What followed is an Express
+service with 50-symbol batching, a 5-second inter-batch delay, explicit 429 handling, a 1-hour
+cache, and input validation before any upstream call is spent. It is not yet wired to the frontend,
+which is the honest gap named in [`heatmap/README.md`](heatmap/README.md).
+
 ## Corrections
 
 Publishing this repo meant re-reading it. Two things were wrong, and both are fixed in the tree:
@@ -118,12 +142,19 @@ Note the gap honestly: **the architecture names licensed providers; the shipped 
 and Yahoo Finance.** That was deliberate — prove the UX on free feeds before committing to roughly
 $12K/month in data licensing. It is also the reason the project paused.
 
-## Why it stopped
+## Why it is paused
 
-The differentiator was the intelligence layer, and the intelligence layer needed licensed market data
-at a cost that required raising capital. Shipping the product without it would have meant shipping
-another quote dashboard. I chose to stop rather than half-ship the thing that made it worth building.
-The trademark, filed in three classes (USPTO serial 99094976), was left to lapse with it.
+Building the heat map is what settled it. Wiring a real market-data vendor into a working prototype
+turned an estimate into a number: the licensed feeds the full platform needed ran to roughly
+$12K/month, against the $69/month plan the prototype was running on. The differentiator was the
+intelligence layer, and the intelligence layer needed that data. Shipping without it would have
+meant shipping another quote dashboard.
+
+So the project is paused pending capital, not abandoned. What still stands: three registered
+domains (tickerbuddy.co, usetickerbuddy.com, tickerbuddy.app), the 47-page product whitepaper, the
+Figma design system, and a USPTO application that was **approved** — the examiner's search returned
+*"No Conflicting Marks Found"* — under serial 99094976. It lapsed only because a Statement of Use
+was due within six months of approval and the product was never sold.
 
 Design files and the whitepaper are available on request.
 
